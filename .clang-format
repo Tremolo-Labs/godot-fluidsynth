@@ -1,4 +1,36 @@
-BasedOnStyle: microsoft
-IndentWidth: 4
+---
+BasedOnStyle:  LLVM
 AccessModifierOffset: -4
-BreakBeforeBraces: Attach
+AlignAfterOpenBracket: DontAlign
+AlignOperands:   DontAlign
+AlignTrailingComments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BreakConstructorInitializers: AfterColon
+ColumnLimit:     0
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+IncludeCategories:
+  - Regex:           '".*"'
+    Priority:        1
+  - Regex:           '^<.*\.h>'
+    Priority:        2
+  - Regex:           '^<.*'
+    Priority:        3
+IndentCaseLabels: true
+IndentWidth:     4
+KeepEmptyLinesAtTheStartOfBlocks: false
+SpacesInLineCommentPrefix:
+  Minimum:         0
+  Maximum:         -1
+TabWidth:        4
+UseTab:          Always
+Standard:        c++17
+---
+Language:        ObjC
+ObjCBlockIndentWidth: 4
+---
+Language:        Java
+JavaImportGroups: ['org.godotengine', 'android', 'androidx', 'com.android', 'com.google', 'java', 'javax']
+---

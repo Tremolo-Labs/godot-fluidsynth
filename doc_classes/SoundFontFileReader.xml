@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="SoundFontFileReader" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Resource containing raw SoundFont data for use by GDMidiAudioStreamPlayer.
+	</brief_description>
+	<description>
+		SoundFontFileReader is a Resource that holds the raw byte data of a SoundFont (.sf2) file.
+		It is created by the SoundFont importer plugin (import_soundfont_plugin.gd) when
+		importing .sf2 files as .sf2str resources.
+
+		The SoundFont data is written to a temporary file on load and passed to
+		FluidSynth's standard file loader, since FluidSynth 2.6+ requires sfload
+		paths that exist on disk.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="set_data" qualifiers="">
+			<return type="void" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				Sets the raw SoundFont data. Called by the importer during resource import.
+			</description>
+		</method>
+		<method name="get_data" qualifiers="const">
+			<return type="PackedByteArray" />
+			<description>
+				Returns the raw SoundFont data as a PackedByteArray.
+			</description>
+		</method>
+		<method name="get_array_data" qualifiers="const">
+			<return type="void*" />
+			<description>
+				Returns a pointer to the internal memory buffer containing the SoundFont data.
+				Used by the custom sfloader to read SoundFont data directly from memory.
+			</description>
+		</method>
+		<method name="get_array_size" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the size of the SoundFont data in bytes.
+			</description>
+		</method>
+		<method name="get_extension" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the file extension for this resource type ("sf2str").
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="data" type="PackedByteArray" setter="set_data" getter="get_data">
+			The raw SoundFont file data as a byte array.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FluidSynth" inherits="Node" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Plays MIDI files using FluidSynth software synthesizer with SoundFont support.
+	</brief_description>
+	<description>
+		FluidSynth extends Node to provide MIDI playback capabilities
+		using the FluidSynth library. It loads MIDI files and SoundFonts as custom resources
+		(MidiFileReader and SoundFontFileReader) and synthesizes audio in real-time.
+
+		The player uses an AudioStreamGenerator internally to push synthesized audio frames
+		to Godot's audio server.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="fluidsynth_play" qualifiers="">
+			<return type="void" />
+			<description>
+				Starts or restarts MIDI playback using the currently loaded SoundFont and MIDI file.
+				This is called automatically when the player starts (if autoplay is enabled),
+				but can be called manually to restart playback.
+			</description>
+		</method>
+		<method name="set_soundfont" qualifiers="">
+			<return type="void" />
+			<param index="0" name="soundfont" type="String" />
+			<description>
+				Sets the SoundFont to use for playback. The path should point to a .sf2str
+				resource file created by the SoundFont importer.
+			</description>
+		</method>
+		<method name="get_soundfont" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the path to the currently loaded SoundFont resource.
+			</description>
+		</method>
+		<method name="set_midi_file" qualifiers="">
+			<return type="void" />
+			<param index="0" name="midi_file" type="String" />
+			<description>
+				Sets the MIDI file to play. The path should point to a .midstr
+				resource file created by the MIDI importer.
+			</description>
+		</method>
+		<method name="get_midi_file" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the path to the currently loaded MIDI file resource.
+			</description>
+		</method>
+		<method name="program_select" qualifiers="">
+			<return type="void" />
+			<param index="0" name="channel" type="int" />
+			<param index="1" name="bank_num" type="int" />
+			<param index="2" name="preset_num" type="int" />
+			<description>
+				Selects a program (instrument) for a MIDI channel.
+				[param channel] MIDI channel (0-15)
+				[param bank_num] Bank number (0-16383)
+				[param preset_num] Preset number (0-127)
+			</description>
+		</method>
+		<method name="note_on" qualifiers="">
+			<return type="void" />
+			<param index="0" name="channel" type="int" />
+			<param index="1" name="key" type="int" />
+			<param index="2" name="velocity" type="int" />
+			<description>
+				Triggers a note-on event on the specified channel.
+				[param channel] MIDI channel (0-15)
+				[param key] MIDI note number (0-127)
+				[param velocity] Note velocity (0-127)
+			</description>
+		</method>
+		<method name="note_off" qualifiers="">
+			<return type="void" />
+			<param index="0" name="channel" type="int" />
+			<param index="1" name="key" type="int" />
+			<description>
+				Triggers a note-off event on the specified channel.
+				[param channel] MIDI channel (0-15)
+				[param key] MIDI note number (0-127)
+			</description>
+		</method>
+		<method name="pitch_bend" qualifiers="">
+			<return type="void" />
+			<param index="0" name="channel" type="int" />
+			<param index="1" name="value" type="int" />
+			<description>
+				Sets the pitch bend value for a MIDI channel.
+				[param channel] MIDI channel (0-15)
+				[param value] Pitch bend value (0-16383, with 8192 being center/no bend)
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="soundfont" type="String" setter="set_soundfont" getter="get_soundfont">
+			Path to the SoundFont resource (.sf2str file) to use for synthesis.
+			The SoundFont must be imported as a SoundFontFileReader resource.
+		</member>
+		<member name="midi file" type="String" setter="set_midi_file" getter="get_midi_file">
+			Path to the MIDI file resource (.midstr file) to play.
+			The MIDI file must be imported as a MidiFileReader resource.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>

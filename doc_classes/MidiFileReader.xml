@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="MidiFileReader" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Resource containing raw MIDI file data for playback by GDMidiAudioStreamPlayer.
+	</brief_description>
+	<description>
+		MidiFileReader is a Resource that holds the raw byte data of a MIDI file.
+		It is created by the MIDI importer plugin (import_midi_plugin.gd) when
+		importing .mid files as .midstr resources.
+
+		The raw MIDI data is passed to FluidSynth's fluid_player_add_mem() for playback.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="set_data" qualifiers="">
+			<return type="void" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				Sets the raw MIDI data. Called by the importer during resource import.
+			</description>
+		</method>
+		<method name="get_data" qualifiers="const">
+			<return type="PackedByteArray" />
+			<description>
+				Returns the raw MIDI data as a PackedByteArray.
+			</description>
+		</method>
+		<method name="get_extension" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the file extension for this resource type ("midstr").
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="data" type="PackedByteArray" setter="set_data" getter="get_data">
+			The raw MIDI file data as a byte array.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>
