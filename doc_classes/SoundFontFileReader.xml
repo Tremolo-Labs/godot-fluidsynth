@@ -5,12 +5,7 @@
 	</brief_description>
 	<description>
 		SoundFontFileReader is a Resource that holds the raw byte data of a SoundFont (.sf2) file.
-		It is created by the SoundFont importer plugin (import_soundfont_plugin.gd) when
-		importing .sf2 files as .sf2str resources.
-
-		The SoundFont data is written to a temporary file on load and passed to
-		FluidSynth's standard file loader, since FluidSynth 2.6+ requires sfload
-		paths that exist on disk.
+		It is created by the SoundFont importer plugin (import_soundfont_plugin.gd) when importing .sf2 files as .sf2str resources.
 	</description>
 	<tutorials>
 	</tutorials>

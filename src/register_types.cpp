@@ -20,7 +20,7 @@ using namespace godot;
 static FluidSynth *fluidsynth_module;
 
 void initialize_gdmidiplayer_module(ModuleInitializationLevel p_level) {
-    if (p_level <= MODULE_INITIALIZATION_LEVEL_SCENE) {
+    if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
         return;
     }
 
@@ -41,7 +41,7 @@ void initialize_gdmidiplayer_module(ModuleInitializationLevel p_level) {
 }
 
 void uninitialize_gdmidiplayer_module(ModuleInitializationLevel p_level) {
-    if (p_level <= MODULE_INITIALIZATION_LEVEL_SCENE) {
+    if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
         return;
     }
 

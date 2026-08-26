@@ -1,9 +1,8 @@
-[gd_scene load_steps=7 format=3 uid="uid://n6csjkhxjfm2"]
+[gd_scene format=3 uid="uid://n6csjkhxjfm2"]
 
-[ext_resource type="Script" path="res://main.cs" id="1"]
-[ext_resource type="SoundFontFileReader" uid="uid://bnijkstv1hhr7" path="res://assets/example.sf2" id="2_8ugko"]
-[ext_resource type="MidiFileReader" uid="uid://c0tb503lp7eup" path="res://assets/example2.mid" id="2_s5w78"]
-[ext_resource type="MidiFileReader" uid="uid://bcfsoo3bbifnj" path="res://assets/example.mid" id="2_t0j6e"]
+[ext_resource type="SoundFontFileReader" uid="uid://c17fj30brtt55" path="res://assets/example.sf2" id="2_8ugko"]
+[ext_resource type="MidiFileReader" path="res://assets/example2.mid" id="2_s5w78"]
+[ext_resource type="MidiFileReader" uid="uid://btxvuje8n4e2y" path="res://assets/example.mid" id="2_t0j6e"]
 
 [sub_resource type="AudioStreamFluidSynth" id="AudioStreamFluidSynth_tuak1"]
 soundfont = ExtResource("2_8ugko")
@@ -12,7 +11,6 @@ midi_file = ExtResource("2_s5w78")
 [sub_resource type="AudioStreamMyTone" id="AudioStreamMyTone_ed7ja"]
 
 [node name="main" type="Node2D"]
-script = ExtResource("1")
 midi_file = ExtResource("2_t0j6e")
 
 [node name="CheckButton" type="CheckButton" parent="."]
