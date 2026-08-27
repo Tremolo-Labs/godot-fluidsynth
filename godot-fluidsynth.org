@@ -1,0 +1,50 @@
+#+begin_example
+[0;94mCompiling shared [1;94msrc/register_types.cpp[0;94m ...[0m
+src/fluidsynth_gdextension.cpp:117:28: warning: variable length
+      arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  117 |             char midi_file[byte_array.size()];
+      |                            ^~~~~~~~~~~~~~~~~
+src/fluidsynth_gdextension.cpp:117:39: note: non-constexpr function
+      'size' cannot be used in a constant expression
+  117 |             char midi_file[byte_array.size()];
+      |                                       ^
+godot-cpp/gen/include/godot_cpp/variant/packed_byte_array.hpp:166:10: note:
+      declared here
+  166 |         int64_t size() const;
+      |                 ^
+[0;94mCompiling shared [1;94msrc/register_types.cpp[0;94m ...[0m
+src/fluidsynth_gdextension.cpp:117:28: warning: variable length
+      arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  117 |             char midi_file[byte_array.size()];
+      |                            ^~~~~~~~~~~~~~~~~
+src/fluidsynth_gdextension.cpp:117:39: note: non-constexpr function
+      'size' cannot be used in a constant expression
+  117 |             char midi_file[byte_array.size()];
+      |                                       ^
+godot-cpp/gen/include/godot_cpp/variant/packed_byte_array.hpp:166:10: note:
+      declared here
+  166 |         int64_t size() const;
+      |                 ^
+
+#+end_example
+
+#+begin_example
+# Keep Godot's global -fno-exceptions for size, but fluidsynth 2.6+ headers
+# pull <filesystem> inline (fluid_stat) which throws. Those TUs must be built
+# with EH enabled or the throw lowers to terminate.
+env_fluid = env.Clone()
+if "-fno-exceptions" in env_fluid.get("CXXFLAGS", []):
+	env_fluid["CXXFLAGS"].remove("-fno-exceptions")
+env_fluid.Append(CXXFLAGS=["-fexceptions"])
+
+fluid_sources = [
+	"src/audio_stream_fluidsynth.cpp",
+	"src/audio_stream_player_fluidsynth.cpp",
+	"src/fluidsynth_gdextension.cpp",
+	"src/register_types.cpp",
+	"src/soundfont_file_reader.cpp",
+]
+all_sources = Glob("src/*.cpp")
+sources = [s for s in all_sources if str(s) not in fluid_sources]
+sources += [env_fluid.SharedObject(s) for s in fluid_sources if os.path.exists(s)]
+#+end_example
