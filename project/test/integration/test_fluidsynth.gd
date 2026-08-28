@@ -36,7 +36,8 @@ func after_test():
 
 func test_singleton_exists():
 	assert_object(Engine.get_singleton("FluidSynth")).is_not_null()
-	assert_object(FluidSynth.get_singleton()).is_not_null()
+	assert_object(synth).is_not_null()
+	assert_object(Engine.get_singleton("FluidSynth")).is_equal(synth)
 
 func test_audiostream_defaults():
 	var stream = auto_free(AudioStreamFluidSynth.new())
