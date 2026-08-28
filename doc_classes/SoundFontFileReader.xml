@@ -1,51 +1,37 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="SoundFontFileReader" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
 	<brief_description>
-		Resource containing raw SoundFont data for use by GDMidiAudioStreamPlayer.
+		Resource holding raw SoundFont bytes and sfloader callbacks.
 	</brief_description>
 	<description>
-		SoundFontFileReader is a Resource that holds the raw byte data of a SoundFont (.sf2) file.
-		It is created by the SoundFont importer plugin (import_soundfont_plugin.gd) when importing .sf2 files as .sf2str resources.
+		SoundFontFileReader holds the raw bytes of a SoundFont 2 file in [member data] and implements the random-access surface ([method open], [method read], [method seek], [method tell]) used by the custom [code]fluid_sfloader_t[/code] in [FluidSynth]. It is produced by the SoundFont import plugin ([code]project/addons/midi/import_soundfont_plugin.gd[/code]) as [code].sf2str[/code]. Only the [code]data[/code] property and [method get_extension] are exposed to GDScript; the file-like methods are C++ helpers and [code]sf_*[/code] callbacks are internal.
 	</description>
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="set_data" qualifiers="">
+		<method name="set_data">
 			<return type="void" />
 			<param index="0" name="data" type="PackedByteArray" />
 			<description>
-				Sets the raw SoundFont data. Called by the importer during resource import.
+				Replaces the internal byte array with a copy of [param data].
 			</description>
 		</method>
 		<method name="get_data" qualifiers="const">
 			<return type="PackedByteArray" />
 			<description>
-				Returns the raw SoundFont data as a PackedByteArray.
-			</description>
-		</method>
-		<method name="get_array_data" qualifiers="const">
-			<return type="void*" />
-			<description>
-				Returns a pointer to the internal memory buffer containing the SoundFont data.
-				Used by the custom sfloader to read SoundFont data directly from memory.
-			</description>
-		</method>
-		<method name="get_array_size" qualifiers="const">
-			<return type="int" />
-			<description>
-				Returns the size of the SoundFont data in bytes.
+				Returns a copy of the internal SoundFont bytes.
 			</description>
 		</method>
 		<method name="get_extension" qualifiers="const">
 			<return type="String" />
 			<description>
-				Returns the file extension for this resource type ("sf2str").
+				Returns [code]"sf2str"[/code], the extension used by the SoundFont loader/saver.
 			</description>
 		</method>
 	</methods>
 	<members>
 		<member name="data" type="PackedByteArray" setter="set_data" getter="get_data">
-			The raw SoundFont file data as a byte array.
+			Raw SoundFont file bytes.
 		</member>
 	</members>
 	<signals>
