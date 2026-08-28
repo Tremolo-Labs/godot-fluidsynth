@@ -16,18 +16,36 @@ const MISSING_MIDI_FILE := "res://test/no_such_song.mid"
 
 var synth: FluidSynth
 
+func _ensure_synth():
+	if synth == null:
+		synth = Engine.get_singleton("FluidSynth") as FluidSynth
+		if synth == null:
+			# GDExtension may still be initializing (call_deferred("initialize"))
+			await get_tree().process_frame
+			synth = Engine.get_singleton("FluidSynth") as FluidSynth
+		assert_object(synth).is_not_null()
+
 func before():
-	synth = Engine.get_singleton("FluidSynth")
+	synth = Engine.get_singleton("FluidSynth") as FluidSynth
+	# Singleton is created via call_deferred("initialize"), give it a frame.
+	var tries := 0
+	while synth == null and tries < 10:
+		await get_tree().process_frame
+		synth = Engine.get_singleton("FluidSynth") as FluidSynth
+		tries += 1
 	assert_object(synth).is_not_null()
 	await get_tree().process_frame
 	# Suite-wide load: each extra set_soundfont stacks a full copy in the synth.
 	# Keep it once here so later tests don't accumulate.
-	if ResourceLoader.exists("res://assets/example.sf2"):
+	if synth and ResourceLoader.exists("res://assets/example.sf2"):
 		synth.set_soundfont("res://assets/example.sf2")
-	if ResourceLoader.exists("res://assets/example.mid"):
+	if synth and ResourceLoader.exists("res://assets/example.mid"):
 		var midi_res = ResourceLoader.load("res://assets/example.mid")
 		if midi_res != null:
 			synth.set_midi_file(midi_res)
+
+func before_test():
+	await _ensure_synth()
 
 func after_test():
 	# Mirrors original after_test: ensure no dangling playback affects next test.
@@ -46,6 +64,11 @@ func test_audiostream_defaults():
 	assert_str(stream.get_stream_name()).is_equal("FluidSynth")
 
 func test_fluidsynth_midi_property_roundtrip():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	var reader = auto_free(MidiFileReader.new())
 	reader.set_data(PackedByteArray([0x4D, 0x54, 0x68, 0x64]))
 	# Fresh singleton state is suite-bound; use the setter and verify getter.
@@ -76,6 +99,11 @@ func test_audiostream_set_get_midi_file():
 	assert_object(stream.get_midi_file()).is_equal(midi)
 
 func test_set_soundfont_missing_is_graceful():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	# Missing path should not crash and should not corrupt existing font.
 	# FluidSynth::set_soundfont checks ResourceLoader::exists and returns early.
 	var before = synth.get_soundfont()
@@ -91,6 +119,11 @@ func test_set_midi_file_missing_is_graceful():
 	assert_object(fresh.get_midi_file()).is_null()
 
 func test_play_midi_with_valid_assets():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	if not ResourceLoader.exists("res://assets/example.mid"):
 		return
 	var midi = ResourceLoader.load("res://assets/example.mid")
@@ -102,6 +135,11 @@ func test_play_midi_with_valid_assets():
 	await get_tree().process_frame
 
 func test_play_midi_default_uses_stored_file():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	# play_midi(null) should use the stored midi_file property.
 	if synth.get_midi_file() == null:
 		if ResourceLoader.exists("res://assets/example.mid"):
@@ -113,6 +151,11 @@ func test_play_midi_default_uses_stored_file():
 	await get_tree().process_frame
 
 func test_play_midi_invalid_is_graceful():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	var orphan = auto_free(MidiFileReader.new())
 	# Empty data -> play_midi will see size 0 and do nothing, must not throw.
 	orphan.set_data(PackedByteArray())
@@ -120,9 +163,18 @@ func test_play_midi_invalid_is_graceful():
 	await get_tree().process_frame
 
 func test_note_and_control_smoke_during_playback():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	if not ResourceLoader.exists("res://assets/example.mid"):
 		return
-	synth.play_midi(ResourceLoader.load("res://assets/example.mid"))
+	var midi = ResourceLoader.load("res://assets/example.mid")
+	if midi == null:
+		fail("failed to load res://assets/example.mid")
+		return
+	synth.play_midi(midi)
 	await get_tree().process_frame
 	synth.program_select(0, 0, 0)
 	synth.note_on(0, 60, 127)
@@ -133,6 +185,11 @@ func test_note_and_control_smoke_during_playback():
 	await get_tree().process_frame
 
 func test_replay_after_stop():
+	if synth == null:
+		await _ensure_synth()
+		if synth == null:
+			fail("FluidSynth singleton not available")
+			return
 	if not ResourceLoader.exists("res://assets/example.mid"):
 		return
 	var midi = ResourceLoader.load("res://assets/example.mid")
