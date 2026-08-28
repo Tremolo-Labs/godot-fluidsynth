@@ -21,7 +21,7 @@ jobs:
             { platform: linux, arch: arm64, os: ubuntu-22.04-arm },
             { platform: linux, arch: arm32, os: ubuntu-22.04-arm },
           ]
-        target-type: [template_debug, template_release]
+        target-type: [template_debug, template_release, editor]
         # Single precision only - godot-cpp extension_api.json is single-precision
         # See: https://github.com/godotengine/godot-cpp/issues/1729
         float-precision: [single]
@@ -140,6 +140,8 @@ jobs:
           path: |
             ${{ github.workspace }}/bin/**
 
+
+
   merge:
     runs-on: ubuntu-22.04
     needs: build
@@ -150,3 +152,39 @@ jobs:
           name: gdmidiplayer
           pattern: gdmidiplayer-*
           delete-merged: true
+  test:
+    permissions:
+      checks: write
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-22.04
+    needs: merge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install fluidsynth (runtime dep of built extension)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfluidsynth-dev fluid-soundfont-gm abcmidi
+
+      - name: Download built extension
+        uses: actions/download-artifact@v4
+        with:
+          name: gdmidiplayer
+          path: bin/
+
+      - name: Place extension libraries where res:// expects them
+        run: mkdir -p project/bin && cp -r bin/linux project/bin/
+
+      - name: make assets
+        run: make assets
+
+      - name: Run GdUnit4 tests
+        uses: godot-gdunit-labs/gdUnit4-action@v1
+        with:
+          godot-version: 4.7
+          project_dir: project/
+          paths: |
+            res://test/unit
+            res://test/integration
+          timeout: 10

@@ -30,7 +30,7 @@ project/assembly_name="MidiPlayer"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/midi/plugin.cfg")
+enabled=PackedStringArray("res://addons/midi/plugin.cfg", "res://addons/gdUnit4/plugin.cfg")
 
 [rendering]
 

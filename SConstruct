@@ -1,23 +1,16 @@
 #!/usr/bin/env python
+import configparser
 import os
 import sys
 import subprocess
 
-from methods import print_error
+from methods import fetch_addon, print_error, read_addon_stamp
 
 
 libname = "gdmidiplayer"
 projectdir = "project"
 
 localEnv = Environment(tools=["default"], PLATFORM="")
-
-# Build profiles can be used to decrease compile times.
-# You can either specify "disabled_classes", OR
-# explicitly specify "enabled_classes" which disables all other classes.
-# Modify the example file as needed and uncomment the line below or
-# manually specify the build_profile parameter when running SCons.
-
-# localEnv["build_profile"] = "build_profile.json"
 
 customs = ["custom.py"]
 customs = [os.path.abspath(path) for path in customs]
@@ -40,6 +33,8 @@ env["api_version"] = ARGUMENTS.get("api_version", "4.7")
 env = SConscript("godot-cpp/SConstruct", {"env": env, "customs": customs})
 
 env.Append(CPPPATH=["src/"])
+
+
 # =============================================================================
 # Fluidsynth Configuration
 # =============================================================================
@@ -136,6 +131,51 @@ else:
 
 
 # =============================================================================
+# Dependency Provisioning (addons.ini)
+# =============================================================================
+
+ADDONS_INI = "addons.ini"
+
+if os.path.exists(ADDONS_INI):
+	cfg = configparser.ConfigParser(interpolation=None)
+	cfg.read(ADDONS_INI)
+
+	required_keys = ["version", "url", "archive-subdir", "destination"]
+	addon_stamps = []
+
+	for section in cfg.sections():
+		missing = [key for key in required_keys if key not in cfg[section]]
+		if missing:
+			print_error(
+				f"{ADDONS_INI}: [{section}] is missing required key(s): {', '.join(missing)}"
+			)
+			sys.exit(1)
+
+		version = cfg[section]["version"].strip()
+		addon_env = env.Clone()
+		addon_env["addon_name"] = section
+		addon_env["addon_version"] = version
+		addon_env["addon_url"] = cfg[section]["url"].strip().format(version=version)
+		addon_env["addon_subdir"] = cfg[section]["archive-subdir"].strip()
+		addon_env["addon_dest"] = cfg[section]["destination"].strip().rstrip("/")
+
+		stamp_path = f"{addon_env['addon_dest']}/.installed"
+		stamp = addon_env.Command(stamp_path, None, fetch_addon)[0]
+		addon_stamps.append(stamp)
+		Alias(section, stamp)
+
+		# Reinstall when the recorded version no longer matches the manifest.
+		if read_addon_stamp(stamp_path) != version:
+			env.AlwaysBuild(stamp)
+
+	if addon_stamps:
+		Alias("addons", addon_stamps)
+elif "addons" in (COMMAND_LINE_TARGETS or []):
+	print_error(f"{ADDONS_INI} not found; no addons to provision.")
+	sys.exit(1)
+
+
+# =============================================================================
 # Build Configuration
 # =============================================================================
 
@@ -148,8 +188,6 @@ if env["target"] in ["editor", "template_debug"]:
     except AttributeError:
         print("Not including class reference as we're targeting a pre-4.3 baseline.")
 
-# .dev doesn't inhibit compatibility, so we don't need to key it.
-# .universal just means "compatible with all relevant arches" so we don't need to key it.
 suffix = env['suffix'].replace(".dev", "").replace(".universal", "")
 
 lib_filename = "{}{}{}{}".format(env.subst('$SHLIBPREFIX'), libname, suffix, env.subst('$SHLIBSUFFIX'))

@@ -2,6 +2,10 @@
 *.gen.*
 .godot/
 
+# Third-party addons (installed via 'make addons')
+project/addons/*
+!project/addons/midi/
+
 # Ignore library files but not the gdextension file
 /bin/**
 !project/bin/*.gdextension
@@ -56,3 +60,6 @@ CMakeUserPresets.json
 
 # project assets
 project/assets/
+
+# gdUnit reports
+project/reports/
