@@ -31,7 +31,7 @@ float AudioStreamMyTone::gen_tone() {
     if (pos > 1.0) {
         pos -= 1.0;
     }
-    return sin(2.0 * Math_PI * pos);
+    return sin(2.0 * M_PI * pos);
 }
 
 void AudioStreamMyTone::_bind_methods() {

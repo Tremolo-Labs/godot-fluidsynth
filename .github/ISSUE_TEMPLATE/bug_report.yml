@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a bug with godot_fluidsynth
+body:
+
+- type: markdown
+  attributes:
+    value: |
+      - Write a descriptive issue title above.
+      - Search [open](https://github.com/Tremolo-Labs/godot-fluidsynth/issues) and [closed](https://github.com/Tremolo-Labs/godot-fluidsynth/issues?q=is%3Aissue+is%3Aclosed) issues to ensure it has not already been reported.
+- type: input
+  attributes:
+    label: Godot version
+    description: >
+      Specify the version of Godot you are running, or the Git commit hash of your Godot build.
+    placeholder: v4.7.stable.official
+  validations:
+    required: true
+
+- type: input
+  attributes:
+    label: godot-cpp version
+    description: >
+      Specify the Git commit hash of the godot-cpp submodule in your project. You can run `git status` inside the folder to check it.
+    placeholder: godot-4.7-stable
+  validations:
+    required: true
+
+- type: input
+  attributes:
+    label: FluidSynth version
+    description: >
+      Version of libfluidsynth used at build/runtime. Report the apt or vcpkg package version,
+      or the output of `fluidsynth --version`.
+    placeholder: 2.6.x
+  validations:
+    required: true
+
+- type: input
+  attributes:
+    label: System information
+    description: |
+      Specify the OS version, plus platform/arch when building from source.
+    placeholder: Ubuntu 22.04, linux x86_64
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: Issue description
+    description: |
+      Describe your issue briefly. What doesn't work, and how do you expect it to work instead?
+      For build failures, include your scons command and the full error output.
+      You can include images or videos with drag and drop, and format code blocks or logs with <code>```</code> tags.
+  validations:
+    required: true

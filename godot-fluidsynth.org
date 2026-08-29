@@ -1,0 +1,237 @@
+* Godot FluidSynth
+This plugin exposes [[https://www.fluidsynth.org/][FluidSynth]] to Godot 4 via [[https://docs.godotengine.org/en/stable/tutorials/scripting/gdextension/what_is_gdextension.html][GDExtension]] and the [[https://github.com/godotengine/godot-cpp][godot-cpp]] bindings. It exists for realtime MIDI playback inside the engine — complementing Godot's built-in MIDI input — by rendering SoundFont-driven synthesis directly into Godot's audio server.
+
+** Usage
+Build prerequisites and commands live in the [[file:README.md][README]] and in =SConstruct=. The example scene =project/main.tscn= drives the singleton from GDScript.
+
+*** Playing a MIDI file
+#+begin_src gdscript
+extends Node2D
+var fluidsynth: Node
+
+func _ready() -> void:
+	fluidsynth = Engine.get_singleton("FluidSynth")
+	fluidsynth.call("play_midi")
+
+# Direct voice control:
+fluidsynth.call("program_select", 0, 0, 0)
+fluidsynth.call("note_on", 0, 60, 127)
+fluidsynth.call("pitch_bend", 0, 8192)
+fluidsynth.call("note_off", 0, 60)
+#+end_src
+
+Imported assets are =MidiFileReader= (=.midstr=) and =SoundFontFileReader= (=.sf2str=) resources; paths resolve through =ResourceLoader= so exported games bundle them. Wiring in =project/main.gd:7= is late-bound via =call()= to avoid a hard GDScript dependency on the GDExtension.
+
+** Design
+FluidSynth assumes it owns file I/O and the audio driver. Godot owns both: assets are packed into =res://= and =.pck=, and the audio server pulls frames. The port bridges that gap with custom rendering, a custom SoundFont loader, and in-memory MIDI injection — three classes plus a GDScript importer.
+
+- =FluidSynth= :: Singleton =Node= that owns =fluid_settings_t=, =fluid_synth_t= and a list of =fluid_player_t= handles, synthesizes into a float buffer, and is registered as =Engine singleton "FluidSynth"=.
+- =AudioStreamFluidSynth= / =AudioStreamPlaybackFluidSynth= :: =AudioStream= pair that delegates =gen_tone= to the singleton, so the stream can be used in an =AudioStreamPlayer= (see =project/main.tscn:7=).
+- =MidiFileReader= / =SoundFontFileReader= :: =Resource= wrappers holding raw =PackedByteArray= bytes so =.mid= / =.sf2= travel through Godot's resource system.
+- =project/addons/midi/= :: =EditorImportPlugin= + =ResourceFormatLoader/Saver= converting =.mid→.midstr= and =.sf2→.sf2str= at import time.
+
+*** Loading SoundFonts at runtime
+The singleton's constructor registers a custom sfloader before any font is touched; the loader claims pseudo-paths beginning with =&= and decodes them back into memory pointers.
+
+#+begin_src cpp :tangle src/fluidsynth_gdextension.cpp
+FluidSynth::FluidSynth() {
+	buffer = new float[44100 * 2];
+	settings = new_fluid_settings();
+	synth = new_fluid_synth(settings);
+	fluid_sfloader_t *sfloader = new_fluid_defsfloader(settings);
+	fluid_sfloader_set_callbacks(sfloader, SoundFontFileReader::sf_open, SoundFontFileReader::sf_read,
+								 SoundFontFileReader::sf_seek, SoundFontFileReader::sf_tell,
+								 SoundFontFileReader::sf_close);
+	fluid_synth_add_sfloader(synth, sfloader);
+	set_process_internal(true);
+	singleton = this;
+	call_deferred("initialize");
+}
+#+end_src
+
+=SoundFontFileReader= implements the =fluid_sfloader_t= callbacks over its =PackedByteArray= (=src/soundfont_file_reader.cpp:82=); =sf_open= accepts only =&%p=, decodes the pointer, and returns it as the handle.
+
+#+begin_src cpp :tangle src/soundfont_file_reader.cpp
+void *SoundFontFileReader::sf_open(const char *filename) {
+	void *p;
+	if (filename[0] != '&')
+		return NULL;
+	sscanf(filename, "&%p", &p);
+	Ref<SoundFontFileReader> *reader = reinterpret_cast<Ref<SoundFontFileReader> *>(const_cast<void *>(p));
+	(*reader)->open();
+	return p;
+}
+#+end_src
+
+=FluidSynth::set_soundfont(String)= (=src/fluidsynth_gdextension.cpp:33=) loads a =SoundFontFileReader= via =ResourceLoader=, formats the address of the local =Ref= as =&%p=, and passes it to =fluid_synth_sfload=:
+
+#+begin_src cpp :tangle src/fluidsynth_gdextension.cpp
+void FluidSynth::set_soundfont(String node_path) {
+	if (ResourceLoader::get_singleton()->exists(node_path)) {
+		Variant resource = ResourceLoader::get_singleton()->load(node_path);
+		Ref<SoundFontFileReader> soundfont = resource;
+		if (soundfont != NULL) {
+			char abused_filename[64];
+			const void *pointer_to_sf2_in_mem = static_cast<void *>(&soundfont);
+			sprintf(abused_filename, "&%p", pointer_to_sf2_in_mem);
+			sfont_id = fluid_synth_sfload(synth, abused_filename, 1);
+		}
+	}
+}
+#+end_src
+
+The =SoundFontFileReader::read/seek/tell= methods (=src/soundfont_file_reader.cpp:50=) operate on the =PackedByteArray= with an internal =position= cursor. FluidSynth's C++ OSAL probes the pseudo-path with =std::filesystem::last_write_time= via =fluid_stat=, which requires the host =libfluidsynth= to be built with exceptions enabled.
+
+*** Handing MIDI data to the synthesizer
+MIDI reaches the synth in-memory via =fluid_player_add_mem=. =FluidSynth::play_midi= (=src/fluidsynth_gdextension.cpp:99=) copies the =MidiFileReader= bytes into a stack buffer and feeds a fresh =fluid_player_t=:
+
+#+begin_src cpp :tangle src/fluidsynth_gdextension.cpp
+void FluidSynth::play_midi(Ref<MidiFileReader> p_midi_file) {
+	Ref<MidiFileReader> local_midi_file;
+	if (p_midi_file != NULL) {
+		if (ResourceLoader::get_singleton()->exists(p_midi_file->get_path())) {
+			Variant resource = ResourceLoader::get_singleton()->load(p_midi_file->get_path());
+			local_midi_file = resource;
+		}
+	} else {
+		local_midi_file = midi_file;
+	}
+	if (local_midi_file != NULL) {
+		PackedByteArray byte_array = local_midi_file->get_data();
+		if (byte_array.size() > 0) {
+			fluid_player_t *fluid_player = new_fluid_player(synth);
+			char midi_file[byte_array.size()];
+			for (int i = 0; i < byte_array.size(); i++)
+				midi_file[i] = byte_array[i];
+			fluid_player_add_mem(fluid_player, midi_file, byte_array.size());
+			fluid_player_play(fluid_player);
+			fluid_players.append(fluid_player);
+		}
+	}
+}
+#+end_src
+
+#+begin_example
+src/fluidsynth_gdextension.cpp:117:28: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+  117 |             char midi_file[byte_array.size()];
+#+end_example
+
+The =fluid_players:27= vector holds all active players; =process= reaps those whose status is =FLUID_PLAYER_DONE=.
+
+*** Rendering pipeline
+=AudioStreamFluidSynth::gen_tone= delegates to the singleton, which renders interleaved stereo floats and fans them into Godot =AudioFrame=s:
+
+#+begin_src cpp :tangle src/fluidsynth_gdextension.cpp
+int FluidSynth::gen_tone(AudioFrame *p_buffer, float p_rate, int p_frames) {
+	int64_t to_fill = p_frames;
+	if (to_fill > 44100) to_fill = 44100;
+	int result = fluid_synth_write_float(synth, to_fill, buffer, 0, 2, buffer, 1, 2);
+	if (result == FLUID_FAILED) UtilityFunctions::print("failed to write to fluid_synth");
+	int index = 0, p_index = 0;
+	while (to_fill > 0) {
+		p_buffer[p_index].left = buffer[index];
+		p_buffer[p_index].right = buffer[index + 1];
+		index += 2; p_index += 1; to_fill -= 1;
+	}
+	return p_frames;
+}
+#+end_src
+
+=AudioStreamPlaybackFluidSynth::_mix= pulls whatever frames are available from the playback; =FluidSynth::process= (=src/fluidsynth_gdextension.cpp:142=) drains finished players each =NOTIFICATION_INTERNAL_PROCESS=:
+
+#+begin_src cpp :tangle src/fluidsynth_gdextension.cpp
+void FluidSynth::process(double delta) {
+	Vector<fluid_player_t *> to_remove;
+	for (int i = 0; i < fluid_players.size(); ++i)
+		if (fluid_player_get_status(fluid_players[i]) == FLUID_PLAYER_DONE)
+			to_remove.append(fluid_players[i]);
+	for (int i = 0; i < to_remove.size(); ++i) {
+		delete_fluid_player(to_remove[i]);
+		fluid_players.erase(to_remove[i]);
+	}
+}
+#+end_src
+
+** Class architecture
+One singleton owns settings, synth and players plus the pump; streams are thin shims that forward to it.
+
+*** FluidSynth
+Singleton =Node=, registered at =MODULE_INITIALIZATION_LEVEL_SCENE= (=src/register_types.cpp:22=) and exposed as =Engine singleton "FluidSynth"=. Binding surface is =program_select=, =note_on/off=, =pitch_bend=, =play_midi=, =soundfont/midi_file= properties, with =initialize= deferred to add itself to the scene root.
+
+#+begin_src cpp :tangle src/register_types.cpp
+void initialize_gdmidiplayer_module(ModuleInitializationLevel p_level) {
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
+	if (FluidSynth::get_singleton() != NULL) return;
+	ClassDB::register_class<FluidSynth>();
+	fluidsynth_module = memnew(FluidSynth);
+	Engine::get_singleton()->register_singleton("FluidSynth", FluidSynth::get_singleton());
+	ClassDB::register_class<MidiFileReader>();
+	ClassDB::register_class<SoundFontFileReader>();
+	ClassDB::register_class<AudioStreamPlaybackMyTone>();
+	ClassDB::register_class<AudioStreamMyTone>();
+	ClassDB::register_class<AudioStreamPlaybackFluidSynth>();
+	ClassDB::register_class<AudioStreamFluidSynth>();
+}
+GDExtensionBool GDE_EXPORT gdmidiplayer_library_init(...) {
+	godot::GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
+	init_obj.register_initializer(initialize_gdmidiplayer_module);
+	init_obj.register_terminator(uninitialize_gdmidiplayer_module);
+	init_obj.set_minimum_library_initialization_level(MODULE_INITIALIZATION_LEVEL_SCENE);
+	return init_obj.init();
+}
+#+end_src
+
+Class reference is emitted via =GodotCPPDocData= when targeting =editor/template_debug= (=SConstruct:144=) into =src/gen/doc_data.gen.cpp=.
+
+*** MidiFileReader and SoundFontFileReader
+Both are =Resource= subclasses holding =PackedByteArray data= (=src/midi_file_reader.h:11=, =src/soundfont_file_reader.h:13=). The SoundFont reader additionally implements the random-access =open/read/seek/tell= surface used by the sfloader callbacks and advertises extensions =midstr= / =sf2str= for the importer.
+
+*** AudioStreamFluidSynth
+=AudioStream= shim (=src/audio_stream_fluidsynth.h:15=) whose =_instantiate_playback= returns an =AudioStreamPlaybackFluidSynth= and whose =set_soundfont/midi_file= forward to the singleton.
+
+** Build and platform support
+*** SConstruct and dependency discovery
+=libname="gdmidiplayer"= matches the entry symbol =gdmidiplayer_library_init= and the built artifact. =projectdir="project"= holds the Godot project. =api_version= defaults to =4.7= and is forwarded to =godot-cpp/SConstruct=.
+
+FluidSynth discovery is staged in =SConstruct:47=:
+
+#+begin_src python :tangle SConstruct
+def configure_fluidsynth_pkgconfig(env):
+    cflags = subprocess.check_output(["pkg-config", "--cflags", "fluidsynth"]).decode().strip()
+    libs   = subprocess.check_output(["pkg-config", "--libs", "fluidsynth"]).decode().strip()
+    env.MergeFlags(cflags); env.MergeFlags(libs); return True
+
+def configure_fluidsynth_vcpkg(env):
+    vcpkg_root = os.environ.get("VCPKG_ROOT", "")
+    triplet = "x64-windows-static" if env["platform"]=="windows" else "arm64-osx"
+    installed = os.path.join(vcpkg_root, "installed", triplet)
+    env.Append(CPPPATH=[os.path.join(installed,"include")])
+    env.Append(LIBPATH=[os.path.join(installed,"lib")])
+    env.Append(LIBS=["fluidsynth"])
+
+if env["platform"]=="linux":
+    configure_fluidsynth_pkgconfig(env) or configure_fluidsynth_fallback(env)
+elif env["platform"] in ["windows","macos"]:
+    configure_fluidsynth_vcpkg(env) or configure_fluidsynth_pkgconfig(env) or configure_fluidsynth_fallback(env)
+#+end_src
+
+CI (=.github/workflows/builds.yml:11=) matrix builds =linux/x86_64/arm64/arm32 × template_debug/release × single=, installing =libfluidsynth-dev= via =apt= on Linux and =fluidsynth:arm64-osx,x64-osx= via =vcpkg= on macOS/Windows, with =scons_cache= and =VCPKG_BINARY_SOURCES=x-gha=.
+
+** Project layout
+The Godot project lives in =project/= (=SConstruct:10=, =project/project.godot:9=, =project/bin/gdmidiplayer.gdextension:7= with =./linux/...= relative paths, =.gdignore= at repo root). Export therefore bundles only =project/=, not =src/godot-cpp=, and =project/.godot= is isolated.
+
+** Demo scene
+=project/main.tscn:3= references GDScript (=res://main.gd=, uid =uid://bd056h3a15m5j=). =project/main.gd:1= shows the wiring:
+
+#+begin_src gdscript :tangle project/main.gd
+extends Node2D
+var fluidsynth: Node
+@export var midi_file: MidiFileReader
+func _ready() -> void:
+	fluidsynth = Engine.get_singleton("FluidSynth")
+	fluidsynth.call("play_midi")
+func _on_button_pressed() -> void:
+	fluidsynth.call("play_midi", midi_file)
+#+end_src
+
+Signals from =CheckButton*.toggled=, =Button.pressed= and =VSlider.value_changed= drive =note_on/off= and =pitch_bend= directly.

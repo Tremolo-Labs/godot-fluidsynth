@@ -1,14 +1,65 @@
+# Godot auto generated files
+*.gen.*
+.godot/
+
+# Third-party addons (installed via 'make addons')
+project/addons/*
+!project/addons/midi/
+
+# Ignore library files but not the gdextension file
+/bin/**
+!project/bin/*.gdextension
+
+# Ignore scons database
+.sconsign*.dblite
+
+# Ignore custom.py
+custom.py
+
+# Ignore generated compile_commands.json
+compile_commands.json
+
+# Ignore files generated for documentation
+/src/gen
+
+# Binaries
+*.o
 *.os
 *.so
-.cache
-.godot
-.mono
-.sconsign.dblite
-.vs
-assets/example.mid
-assets/example2.mid
-assets/example.sf2
-bin/x11/
-build
-build-log.txt
-compile_commands.json
+*.obj
+*.bc
+*.pyc
+*.dblite
+*.pdb
+*.lib
+*.config
+*.creator
+*.creator.user
+*.files
+*.includes
+*.idb
+*.exp
+
+# Other stuff
+*.log
+
+# VSCode
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+
+# Jetbrains
+.idea/
+
+# Cmake
+cmake-build*
+CMakeUserPresets.json
+
+# clangd
+.ccls-cache/
+
+# project assets
+project/assets/
+
+# gdUnit reports
+project/reports/

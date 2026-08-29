@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AudioStreamFluidSynth" inherits="AudioStream" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		AudioStream that renders through the FluidSynth singleton.
+	</brief_description>
+	<description>
+		AudioStreamFluidSynth is a thin shim around the [FluidSynth] singleton. Its [method _instantiate_playback] returns an [AudioStreamPlaybackFluidSynth] and its [method gen_tone] delegates to [method FluidSynth.gen_tone]. SoundFont and MIDI resources are stored as [SoundFontFileReader] and [MidiFileReader] and forwarded to the singleton on set.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="reset">
+			<return type="void" />
+			<description>
+				Resets playback position to zero.
+			</description>
+		</method>
+		<method name="get_stream_name" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns [code]"FluidSynth"[/code].
+			</description>
+		</method>
+		<method name="set_soundfont">
+			<return type="void" />
+			<param index="0" name="soundfont" type="SoundFontFileReader" />
+			<description>
+				Stores [param soundfont] and forwards its path to [method FluidSynth.set_soundfont] when the singleton exists.
+			</description>
+		</method>
+		<method name="get_soundfont" qualifiers="const">
+			<return type="SoundFontFileReader" />
+			<description>
+				Returns the stored [SoundFontFileReader].
+			</description>
+		</method>
+		<method name="set_midi_file">
+			<return type="void" />
+			<param index="0" name="midi_file" type="MidiFileReader" />
+			<description>
+				Stores [param midi_file] and forwards it to [method FluidSynth.set_midi_file] when the singleton exists.
+			</description>
+		</method>
+		<method name="get_midi_file" qualifiers="const">
+			<return type="MidiFileReader" />
+			<description>
+				Returns the stored [MidiFileReader].
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="soundfont" type="SoundFontFileReader" setter="set_soundfont" getter="get_soundfont">
+			SoundFont resource for this stream.
+		</member>
+		<member name="midi_file" type="MidiFileReader" setter="set_midi_file" getter="get_midi_file">
+			MIDI resource for this stream.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>
