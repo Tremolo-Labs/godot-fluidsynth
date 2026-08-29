@@ -5,6 +5,7 @@ import sys
 import tarfile
 import urllib.error
 import urllib.request
+import zipfile
 from enum import Enum
 
 # Colors are disabled in non-TTY environments such as pipes. This means
@@ -67,6 +68,32 @@ def read_addon_stamp(path: str) -> str | None:
         return None
 
 
+def _iter_archive_files(payload: bytes):
+    """Yields (root, relative_path, fileobj) for regular files in a tar or zip.
+
+    Format is detected by magic bytes: archives from GitHub arrive as tarballs,
+    Bitbucket commit snapshots as zips.
+    """
+    if payload[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                parts = info.filename.split("/", 1)
+                if len(parts) != 2:
+                    continue
+                yield parts[0], parts[1], zf.open(info)
+    else:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:*") as tf:
+            for member in tf.getmembers():
+                if not member.isfile():
+                    continue
+                parts = member.name.split("/", 1)
+                if len(parts) != 2:
+                    continue
+                yield parts[0], parts[1], tf.extractfile(member)
+
+
 def fetch_addon(target, source, env) -> None:
     """SCons action: download an addon archive and extract its subtree.
 
@@ -91,29 +118,21 @@ def fetch_addon(target, source, env) -> None:
     shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
 
-    # subdir is relative to the archive's root component (which GitHub names
-    # after the repo and tag; a leading 'v' is dropped from the tag).
+    # subdir is relative to the archive's root component (which the forge names
+    # after the repo and its tag or commit).
     extracted = 0
     roots = set()
-    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:*") as tf:
-        for member in tf.getmembers():
-            if not member.isfile():
-                continue
-            parts = member.name.split("/", 1)
-            if len(parts) != 2:
-                continue
-            root, rel = parts
-            if not rel.startswith(subdir + "/"):
-                continue
-            roots.add(root)
-            out = os.path.join(dest, rel[len(subdir) + 1:])
-            os.makedirs(os.path.dirname(out), exist_ok=True)
-            src = tf.extractfile(member)
-            if src is None:
-                continue
-            with open(out, "wb") as dstf:
-                shutil.copyfileobj(src, dstf)
-            extracted += 1
+    for root, rel, src in _iter_archive_files(payload):
+        if not rel.startswith(subdir + "/"):
+            continue
+        roots.add(root)
+        out = os.path.join(dest, rel[len(subdir) + 1:])
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        if src is None:
+            continue
+        with open(out, "wb") as dstf:
+            shutil.copyfileobj(src, dstf)
+        extracted += 1
 
     if len(roots) > 1:
         print_error(f"ambiguous matches for '{subdir}' under multiple archive roots: {sorted(roots)}")
