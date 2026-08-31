@@ -1,14 +1,10 @@
 [gd_scene format=3 uid="uid://n6csjkhxjfm2"]
 
 [ext_resource type="Script" uid="uid://bd056h3a15m5j" path="res://main.gd" id="1_h2yge"]
-[ext_resource type="SoundFontFileReader" uid="uid://c17fj30brtt55" path="res://assets/example.sf2" id="2_8ugko"]
 [ext_resource type="MidiFileReader" uid="uid://brl4urujq8mel" path="res://assets/example2.mid" id="2_s5w78"]
 
 [sub_resource type="AudioStreamFluidSynth" id="AudioStreamFluidSynth_tuak1"]
-soundfont = ExtResource("2_8ugko")
 midi_file = ExtResource("2_s5w78")
-
-[sub_resource type="AudioStreamMyTone" id="AudioStreamMyTone_ed7ja"]
 
 [node name="main" type="Node2D" unique_id=463472929]
 script = ExtResource("1_h2yge")
@@ -67,13 +63,10 @@ offset_bottom = 241.0
 max_value = 16383.0
 value = 8192.0
 
-[node name="FluidSynthPlayer" type="AudioStreamPlayer" parent="." unique_id=584465238]
+[node name="FluidSynthPlayer" type="AudioStreamPlayerFluidSynth" parent="." unique_id=584465238]
+loop = 1
 stream = SubResource("AudioStreamFluidSynth_tuak1")
 autoplay = true
-
-[node name="MyTone" type="AudioStreamPlayer" parent="." unique_id=234192428]
-stream = SubResource("AudioStreamMyTone_ed7ja")
-volume_db = -40.0
 
 [connection signal="toggled" from="CheckButton" to="." method="_on_CheckButton_toggled"]
 [connection signal="toggled" from="CheckButton2" to="." method="_on_CheckButton2_toggled"]
