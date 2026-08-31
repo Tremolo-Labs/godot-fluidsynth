@@ -153,9 +153,9 @@ void FluidSynth::process(double delta) {
 #+end_src
 
 ** Class architecture
-Today =FluidSynth= is a monolith: one node owns the FluidSynth =settings=, =synth=, and =player= handles plus the audio pumping. FluidSynth itself draws cleaner seams — a synth you can strike immediately, a player that walks SMF tracks, and a sequencer that delivers events on a clock. Games want those seams too: driving a voice without loading a song, scheduling stabs on a timeline without a transport, tuning effects without touching playback.
+Today =FluidSynth= is a monolith: one node owns the FluidSynth =settings=, =synth=, and =player= handles plus the audio pumping. FluidSynth itself draws cleaner seams — a synth you can strike immediately, a player that walks SMF tracks, and a sequencer that routes live MIDI events. Games want those seams too: driving a voice without loading a song, playing a keyboard in real time without a transport, tuning effects without touching playback.
 
-The split keeps the singleton pattern: =FluidSynth= remains the voice/settings surface, and =FluidSynthPlayer= (=fluid_player_t= transport) and =FluidSynthSequencer= (=fluid_sequencer_t= timed events) become their own nodes.
+The split keeps the singleton pattern: =FluidSynth= remains the voice/settings surface, =FluidSynthPlayer= (=fluid_player_t= transport) and =FluidSynthSequencer= (=fluid_sequencer_t= live-MIDI hub) become their own nodes. Every FluidSynth callback is marshalled onto a Godot signal, so GDScript sees the event stream the way the [[https://github.com/arlez80/godot-midi-player-g4][godot-midi-player]] addon does.
 
 *** FluidSynth
 Singleton =Node=, registered at =MODULE_INITIALIZATION_LEVEL_SCENE= (=src/register_types.cpp:22=) and exposed as =Engine singleton "FluidSynth"=. Binding surface is =program_select=, =note_on/off=, =pitch_bend=, =play_midi=, =soundfont/midi_file= properties, with =initialize= deferred to add itself to the scene root.
@@ -187,21 +187,20 @@ Class reference is emitted via =GodotCPPDocData= when targeting =editor/template
 
 The singleton also carries the voice and settings surface. Reverb and chorus are real DSP stages inside every =fluid_synth_write_float= pass — parameters arrive via settings keys, apply audibly on subsequent passes, and land in Godot *pre-bus* because our rendering pipeline pushes finished frames downstream. Godot buses remain the general effects rack; the synth-internal chain is tone shaping ahead of them.
 
-- Channel voice :: =note_on/off=, =pitch_bend=, =cc=/=get_cc=, =bank_select=, =sfont_select=, =program_change=, =key_pressure=, =channel_pressure=
-- Global :: =gain=, =polyphony=, =voice_count=, =all_notes_off(chan)=, =system_reset()=, =unload_font(id)=
-- FX groups :: reverb (enabled/room-size/damping/width/level) and chorus (enabled/count/level/speed/depth) routed through =synth.reverb.*= / =synth.chorus.*= settings keys — never the deprecated direct setters; per-channel sends documented via cc 91/93
+- Channel voice :: =note_on/off=, =cc=/=get_cc=, =pitch_bend= / =get_pitch_bend=, =pitch_wheel_sens= / =get_pitch_wheel_sens=, =program_change=, =program_select=, =program_select_by_sfont_name=, =program_reset=, =bank_select=, =sfont_select=, =key_pressure=, =channel_pressure=, =all_notes_off=, =all_sounds_off=, =system_reset=, =sysex=, =get_program=, =set_gen/get_gen=, =unset_program=
+- Global :: =gain=, =polyphony=, =midi_channels=, =voice_count=, =unload_font(id)=, =sfont_count= and per-font queries
+- FX groups :: reverb (enabled/room-size/damping/width/level) and chorus (enabled/count/level/speed/depth) routed through =synth.reverb.*= / =synth.chorus.*= settings keys — never the deprecated direct setters; per-channel sends land via cc 91/93 in the player callback
 - Settings :: every runtime-relevant key becomes a property (dynamic sample loading, midi channels, cpu cores, period config); shell settings and LADSPA stay out — buses already bridge effects, and LADSPA is Linux-only
 - Validation :: =fluid_is_soundfont= / =fluid_is_midifile= guards before loads
 
 Voice callbacks ship deliberately, sharp edges documented: after each played or scheduled note-on, unregistered voices from =fluid_synth_get_voicelist= receive =fluid_voice_set_callback=; events flow through the deferred queue as =voice_note_off(id)= / =voice_finished(id)=. Class docs carry the header warnings verbatim: callbacks fire from the synthesis thread, block the DSP loop while running, must not call public API, and NOTEOFF never fires for one-shot percussion samples.
 
 *** FluidSynthPlayer
-Plays tracks: transport over Standard MIDI Files. Wraps =fluid_player_t= and replaces the =_process=-watchdog polling that currently recycles the player (and races replays into duplicated playlists) with an event-driven lifecycle.
+Plays tracks: transport over Standard MIDI Files. Wraps one =fluid_player_t= and replaces the =_process=-watchdog polling that currently recycles the player (and races replays into duplicated playlists) with an event-driven lifecycle.
 
-Surface, drawn from the [[https://www.fluidsynth.org/wiki/api/midi_8h.html][player API]]:
-- Transport :: =play=, =stop=, =seek(ticks)=, =set_loop(n)=
-- Properties :: =tick= (=fluid_player_get_current_tick=), =total_ticks=, =bpm=, =division= (PPQ), =tempo= (=fluid_player_set_tempo=, including =FLUID_PLAYER_TEMPO_EXTERNAL=)
-- Signals :: =finished= (from =FLUID_PLAYER_DONE=), =looped= (wrap detection via the tick callback), =ticked(tick)=
+Transport and properties, drawn from the [[https://www.fluidsynth.org/wiki/api/midi-player/][MIDI File Player API]]:
+- Transport :: =play=, =stop=, =seek(ticks)=, =set_loop(n)= (= -1 = loops forever), =join=
+- Properties :: =tick= (=fluid_player_get_current_tick=), =total_ticks= (=fluid_player_get_total_ticks=), =bpm= (=fluid_player_get_bpm=), =division= (PPQ, =fluid_player_get_division=), =tempo= (set via =fluid_player_set_tempo= with a =tempo_type= of =FLUID_PLAYER_TEMPO_INTERNAL=, =FLUID_PLAYER_TEMPO_EXTERNAL_BPM= or =FLUID_PLAYER_TEMPO_EXTERNAL_MIDI=)
 
 #+begin_src gdscript :tangle no
 var p := FluidSynthPlayer.new()
@@ -215,32 +214,59 @@ print("played %d ticks" % p.total_ticks)
 
 The soundfont stays global: =FluidSynthPlayer= plays against whatever font the =FluidSynth= singleton has loaded.
 
+The player is also the event surface. Two FluidSynth callbacks carry the whole stream — =fluid_player_set_playback_callback= (a =handle_midi_event_func_t= invoked for every MIDI message) and =fluid_player_set_tick_callback= (=handle_midi_tick_func_t=) — and every one of them is forwarded onto a Godot signal. The reference implementation for this surface is the [[https://github.com/arlez80/godot-midi-player-g4][godot-midi-player]] addon (=project/addons/godot-midi-player=): pure GDScript and slower, but it emits *more* of the SMF content than FluidSynth exposes, and its =MidiPlayer.gd:301= signal block is the contract our signals mirror. The two players stay interchangeable in the unit tests, where the addon acts as the oracle.
+
+Playback signals (from =handle_midi_event_func_t=):
+- =note_on(channel, key, velocity)=, =note_off(channel, key)=
+- =control_change(channel, controller, value)=, =program_change(channel, program)=
+- =pitch_bend(channel, value)= (0-16383, 8192 center), =key_pressure(channel, key, value)=, =channel_pressure(channel, value)=
+- =midi_event(channel, event: Dictionary)= — the raw event (type + fields) for consumers that want everything =fluid_midi_event_t= can carry (sysex, meta)
+
+Transport signals:
+- =ticked(tick)= from =handle_midi_tick_func_t= (fired at PPQ × BPM per minute)
+- =finished= when status flips to =FLUID_PLAYER_DONE=; =looped= on playlist wrap
+- =tempo_changed(bpm)= on the set-tempo meta event
+
+SMF meta-text signals (decoded from text/lyrics-bearing events in the stream, as the addon does at =MidiPlayer.gd:1007=):
+- =midi_text(text)=, =midi_lyrics(text)=, =midi_copyright(text)=
+- =midi_track_name(channel, name)=, =midi_instrument_name(channel, name)=
+- =midi_marker(marker)=, =midi_cue_point(cue)=
+- =gm_system_on=, =gs_reset=, =xg_system_on= — decoded from the sys-ex stream exactly as =MidiPlayer._process_track_sys_ex= does (=MidiPlayer.gd:1040=)
+
 *** FluidSynthSequencer
-Timed event delivery to a synth — the future tense of =FluidSynth=. There is no overlap with the synth by construction: the synth executes commands *now*, the sequencer owns a clock and delivers them *later*. Boundary rule: any API taking a timestamp lives here, any immediate call lives there.
+A hub for *live* MIDI events — real-time notes, CC and pitch from a keyboard or controller — routed into the synth. The sequencer owns =fluid_sequencer_t= and registers the =FluidSynth= singleton's synth as a destination client at construction (=fluid_sequencer_register_fluidsynth=). Its headline path is =fluid_sequencer_add_midi_event_to_buffer=, whose signature *is* a =handle_midi_event_func_t=: hand it a raw MIDI event (e.g. from Godot's =InputEventMIDI=, the same live path the reference's =receive_raw_midi_message= uses at =MidiPlayer.gd:729=) and it reaches the synth as soon as possible. This is the "strike a voice without loading a song" seam — it is *not* a song timeline.
 
-A dedicated class owns =fluid_sequencer_t=, registering the target player's synth as its client at construction (one sequencer per synth in v1). Events are built with the typed =fluid_event_*= constructors — notes, CC family (sustain/pan/volume/reverb send/modulation), program/bank selects, pitch bends, timers — and delivered at scheduled positions. All outbound command flow, so none of the DSP-thread hazards of the voice callbacks.
+The same queue also accepts scheduled delivery: =fluid_sequencer_send_at= with absolute or relative ticks, =fluid_sequencer_send_now= for immediate dispatch, =fluid_sequencer_remove_events= to cancel. Time is sequencer-native milliseconds by default; =fluid_sequencer_set_time_scale= (or a =FLUID_SEQ_SCALE= event) retunes it.
 
-- Scheduling :: =schedule_note_on/off=, =schedule_cc=, =schedule_program_select=, =schedule_all_notes_off=, timer events
-- Timeline :: sequencer-native milliseconds for v1; tick-domain helpers can layer later against =FluidSynthPlayer= 's =tick= property — mixing clocks early is where drift bugs live
-- Housekeeping :: =cancel(from_ms)=, =clear()=
+Event surface — the typed =fluid_event_*= builders (=new_fluid_event= + setters), exposed as Godot methods:
+- Notes :: =note_on(channel, key, vel)=, =note_off(channel, key)=, =note(channel, key, vel, duration)=
+- Channel :: =control_change=, =program_change=, =program_select(sfont_id, bank, preset)=, =pitch_bend=, =pitch_wheelsens=, =key_pressure=, =channel_pressure=, =sustain=, =modulation=, =pan=, =volume=, =reverb_send=, =chorus_send=, =all_notes_off=, =all_sounds_off=, =system_reset=
+- Housekeeping :: =timer(data)=, =set_time_scale(scale)=, =unregistering=
 
-** Delivery plan
-Signal plumbing must exist before anything event-shaped consumes it, so the phases order dependencies first; each lands as its own PR.
-
-1. *Transport & performance surface* — =FluidSynthPlayer= properties/methods, validation guards; unit tests mirroring the existing suites.
-2. *Deferred-emission infrastructure* — a lock-free queue fed from FluidSynth threads, drained and emitted during =_process=; every signal below reuses it. Then: playback callback → granular =midi_note_on/off= / =midi_control_change= / =midi_program_change= / =midi_pitch_bend=, tick callback → =ticked=, status → =finished= / =looped=; migrate the =_process= watchdog onto =finished=; integration tests await signals instead of frame-counting.
-3. *Channel voice completeness* — bank/sfont/program selection, key and channel pressure.
-4. *FX & settings surface* — the =FluidSynth= property groups above.
-5. *FluidSynthSequencer* — the class and its scheduling surface.
-6. *Voice callbacks* — the attach sweep and its two deferred signals.
-
-Collateral: upstream memory-loader fix returns the custom loader and retires the tempfile workaround; pointer/dead-code sweep belongs to the cleanup issue on the forge.
+Signals:
+- =event_received(event: Dictionary)= — a destination client's =fluid_event_callback_t= firing (client id, type, channel + fields)
+- =timer_event(data)=, =client_registered(id, name)=, =client_unregistered(id)=
+- =tick(tick)=, =time_scale(scale)= — the sequencer clock when not advanced by the synth
 
 *** MidiFileReader and SoundFontFileReader
 Both are =Resource= subclasses holding =PackedByteArray data= (=src/midi_file_reader.h:11=, =src/soundfont_file_reader.h:13=). The SoundFont reader additionally implements the random-access =open/read/seek/tell= surface used by the sfloader callbacks and advertises extensions =midstr= / =sf2str= for the importer.
 
 *** AudioStreamFluidSynth
 =AudioStream= shim (=src/audio_stream_fluidsynth.h:15=) whose =_instantiate_playback= returns an =AudioStreamPlaybackFluidSynth= and whose =set_soundfont/midi_file= forward to the singleton.
+
+** Delivery plan
+Signal plumbing must exist before anything event-shaped consumes it, so the phases order dependencies first; each lands as its own PR.
+
+1. *Transport & performance surface* — =FluidSynthPlayer= transport + properties, validation guards (=fluid_is_midifile=); unit tests mirroring the existing suites.
+2. *Deferred-emission infrastructure* — a lock-free queue fed from FluidSynth threads, drained and emitted during =_process=; every signal reuses it. Then: playback callback → the granular channel + meta signals above, tick callback → =ticked=, status → =finished= / =looped=; migrate the =_process= watchdog onto =finished=; integration tests await signals instead of frame-counting.
+3. *Channel voice completeness* — the full =midi-messages= surface on =FluidSynth= (bank/sfont/program select, key/channel pressure, sysex) plus the =get_*= queries.
+4. *FX & settings surface* — the =FluidSynth= property groups above.
+5. *FluidSynthSequencer* — the class and its live-MIDI + scheduling surface.
+6. *Voice callbacks* — the attach sweep and its two deferred signals.
+
+The =godot-midi-player= addon (=project/addons/godot-midi-player=, fetched via =make addons=) rides along in the integration suites: it is the behavioral oracle for the signal contract, and =FluidSynthPlayer= is expected to be signal-compatible with it (both fed the same =project/assets/*.mid= fixtures).
+
+Collateral: upstream memory-loader fix returns the custom loader and retires the tempfile workaround; pointer/dead-code sweep belongs to the cleanup issue on the forge.
 
 ** Build and platform support
 *** SConstruct and dependency discovery
