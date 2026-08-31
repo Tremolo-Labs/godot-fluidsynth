@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AudioStreamPlaybackFluidSynth" inherits="AudioStreamPlayback" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Transient render session for AudioStreamFluidSynth.
+	</brief_description>
+	<description>
+		AudioStreamPlaybackFluidSynth is the transient render session created by [AudioStreamFluidSynth]'s playback instantiation. It renders the stream's synth on the audio thread and owns the SMF transport ([code]fluid_player_t[/code]) for the duration of a play: [code]_start[/code] creates the player and feeds it the stream's MIDI data, while [code]_mix[/code] renders [code]fluid_synth_write_float[/code] directly. It is not instantiated from script; assign an [AudioStreamFluidSynth] to an [AudioStreamPlayerFluidSynth] node instead.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+	</methods>
+	<members>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>

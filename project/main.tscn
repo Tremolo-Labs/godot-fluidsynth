@@ -1,9 +1,11 @@
 [gd_scene format=3 uid="uid://n6csjkhxjfm2"]
 
 [ext_resource type="Script" uid="uid://bd056h3a15m5j" path="res://main.gd" id="1_h2yge"]
+[ext_resource type="SoundFontFileReader" uid="uid://c17fj30brtt55" path="res://assets/example.sf2" id="2_8ugko"]
 [ext_resource type="MidiFileReader" uid="uid://brl4urujq8mel" path="res://assets/example2.mid" id="2_s5w78"]
 
 [sub_resource type="AudioStreamFluidSynth" id="AudioStreamFluidSynth_tuak1"]
+soundfont = ExtResource("2_8ugko")
 midi_file = ExtResource("2_s5w78")
 
 [node name="main" type="Node2D" unique_id=463472929]

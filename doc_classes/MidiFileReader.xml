@@ -4,7 +4,7 @@
 		Resource holding raw MIDI bytes for FluidSynth playback.
 	</brief_description>
 	<description>
-		MidiFileReader holds the raw bytes of a Standard MIDI File in [member data]. It is produced by the MIDI import plugin ([code]project/addons/midi/import_midi_plugin.gd[/code]) as [code].midstr[/code] and consumed by [FluidSynth] via [code]fluid_player_add_mem[/code]. The resource travels through [code]ResourceLoader[/code] so songs can be bundled in exported games.
+		MidiFileReader holds the raw bytes of a Standard MIDI File in [member data]. It is produced by the MIDI import plugin ([code]project/addons/midi/import_midi_plugin.gd[/code]) as [code].midstr[/code] and consumed by [AudioStreamPlaybackFluidSynth] via [code]fluid_player_add_mem[/code]. The resource travels through [code]ResourceLoader[/code] so songs can be bundled in exported games.
 	</description>
 	<tutorials>
 	</tutorials>

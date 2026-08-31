@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AudioStreamPlayerFluidSynth" inherits="AudioStreamPlayer" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		AudioStreamPlayer that drives an AudioStreamFluidSynth.
+	</brief_description>
+	<description>
+		AudioStreamPlayerFluidSynth is an [AudioStreamPlayer] whose [member AudioStreamPlayer.stream] is an [AudioStreamFluidSynth]. It owns the instance lifecycle (the inherited [method AudioStreamPlayer.play], [method AudioStreamPlayer.stop], [method AudioStreamPlayer.seek] and the [signal AudioStreamPlayer.finished] signal), the SMF transport controls, and the voice-control surface, which it forwards to the stream's synth.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="program_select">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="bank_num" type="int" />
+			<param index="2" name="preset_num" type="int" />
+			<description>
+				Selects a SoundFont preset on [param chan] via [code]fluid_synth_program_select[/code].
+			</description>
+		</method>
+		<method name="note_on">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="key" type="int" />
+			<param index="2" name="vel" type="int" />
+			<description>
+				Triggers note-on on [param chan] via [code]fluid_synth_noteon[/code].
+			</description>
+		</method>
+		<method name="note_off">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="key" type="int" />
+			<description>
+				Triggers note-off on [param chan] via [code]fluid_synth_noteoff[/code].
+			</description>
+		</method>
+		<method name="cc">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="ctrl" type="int" />
+			<param index="2" name="val" type="int" />
+			<description>
+				Sends a control-change message on [param chan] via [code]fluid_synth_cc[/code].
+			</description>
+		</method>
+		<method name="pitch_bend">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="val" type="int" />
+			<description>
+				Sets pitch bend [param val] on [param chan] via [code]fluid_synth_pitch_bend[/code]. [param val] is in [code][0, 16383][/code] with [code]8192[/code] as center.
+			</description>
+		</method>
+		<method name="program_change">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="program" type="int" />
+			<description>
+				Sends a program-change message on [param chan] via [code]fluid_synth_program_change[/code].
+			</description>
+		</method>
+		<method name="bank_select">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="bank" type="int" />
+			<description>
+				Sends a bank-select message on [param chan] via [code]fluid_synth_bank_select[/code].
+			</description>
+		</method>
+		<method name="sfont_select">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="sfont_id" type="int" />
+			<description>
+				Selects a SoundFont on [param chan] via [code]fluid_synth_sfont_select[/code].
+			</description>
+		</method>
+		<method name="key_pressure">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="key" type="int" />
+			<param index="2" name="val" type="int" />
+			<description>
+				Sends a key-pressure (polyphonic aftertouch) message via [code]fluid_synth_key_pressure[/code].
+			</description>
+		</method>
+		<method name="channel_pressure">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="val" type="int" />
+			<description>
+				Sends a channel-pressure message via [code]fluid_synth_channel_pressure[/code].
+			</description>
+		</method>
+		<method name="all_notes_off">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<description>
+				Turns off all notes on [param chan] via [code]fluid_synth_all_notes_off[/code].
+			</description>
+		</method>
+		<method name="all_sounds_off">
+			<return type="void" />
+			<param index="0" name="chan" type="int" />
+			<description>
+				Stops all sounds on [param chan] via [code]fluid_synth_all_sounds_off[/code].
+			</description>
+		</method>
+		<method name="system_reset">
+			<return type="void" />
+			<description>
+				Resets the synth via [code]fluid_synth_system_reset[/code].
+			</description>
+		</method>
+		<method name="get_cc">
+			<return type="int" />
+			<param index="0" name="chan" type="int" />
+			<param index="1" name="ctrl" type="int" />
+			<description>
+				Returns the current value of controller [param ctrl] on [param chan], or [code]0[/code] if no synth is attached.
+			</description>
+		</method>
+		<method name="get_pitch_bend">
+			<return type="int" />
+			<param index="0" name="chan" type="int" />
+			<description>
+				Returns the current pitch bend value on [param chan], or [code]0[/code] if no synth is attached.
+			</description>
+		</method>
+		<method name="get_pitch_wheel_sens">
+			<return type="int" />
+			<param index="0" name="chan" type="int" />
+			<description>
+				Returns the pitch wheel sensitivity on [param chan], or [code]0[/code] if no synth is attached.
+			</description>
+		</method>
+		<method name="get_program">
+			<return type="int" />
+			<param index="0" name="chan" type="int" />
+			<description>
+				Returns the current preset number on [param chan], or [code]0[/code] if no synth is attached.
+			</description>
+		</method>
+		<method name="get_voice_count">
+			<return type="int" />
+			<description>
+				Returns the number of currently active voices, or [code]0[/code] if no synth is attached.
+			</description>
+		</method>
+		<method name="set_loop">
+			<return type="void" />
+			<param index="0" name="loops" type="int" />
+			<description>
+				Sets the SMF loop count on the active player.
+			</description>
+		</method>
+		<method name="get_loop" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the SMF loop count.
+			</description>
+		</method>
+		<method name="get_tick">
+			<return type="int" />
+			<description>
+				Returns the current tick of the active player, or [code]0[/code] if there is none.
+			</description>
+		</method>
+		<method name="get_total_ticks">
+			<return type="int" />
+			<description>
+				Returns the total tick count of the active player, or [code]0[/code] if there is none.
+			</description>
+		</method>
+		<method name="get_bpm">
+			<return type="int" />
+			<description>
+				Returns the current BPM of the active player, or [code]0[/code] if there is none.
+			</description>
+		</method>
+		<method name="get_division">
+			<return type="int" />
+			<description>
+				Returns the ticks-per-quarter-note division of the active player, or [code]0[/code] if there is none.
+			</description>
+		</method>
+		<method name="set_tempo">
+			<return type="void" />
+			<param index="0" name="tempo_type" type="int" />
+			<param index="1" name="tempo" type="float" />
+			<description>
+				Sets the tempo of the active player. [param tempo_type] is one of [code]FLUID_PLAYER_TEMPO_INTERNAL[/code], [code]FLUID_PLAYER_TEMPO_EXTERNAL_BPM[/code] or [code]FLUID_PLAYER_TEMPO_EXTERNAL_MIDI[/code].
+			</description>
+		</method>
+		<method name="get_tempo">
+			<return type="float" />
+			<description>
+				Returns the current BPM of the active player as a [float], or [code]0.0[/code] if there is none.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="loop" type="int" setter="set_loop" getter="get_loop">
+			SMF loop count.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>
