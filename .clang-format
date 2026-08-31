@@ -2,3 +2,10 @@ BasedOnStyle: microsoft
 IndentWidth: 4
 AccessModifierOffset: -4
 BreakBeforeBraces: Attach
+---
+Language:        ObjC
+ObjCBlockIndentWidth: 4
+---
+Language:        Java
+JavaImportGroups: ['org.godotengine', 'android', 'androidx', 'com.android', 'com.google', 'java', 'javax']
+---
