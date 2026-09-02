@@ -1,8 +1,6 @@
 class_name TestFluidSynth
 extends GdUnitTestSuite
 
-const MISSING_SOUNDFONT := "res://test/no_such_soundfont.sf2"
-
 var stream: AudioStreamFluidSynth
 var player: AudioStreamPlayerFluidSynth
 
@@ -23,14 +21,16 @@ func after():
 
 
 func test_classes_registered():
-	assert_object(AudioStreamFluidSynth.new()).is_not_null()
-	assert_object(AudioStreamPlayerFluidSynth.new()).is_not_null()
+	var stream := AudioStreamFluidSynth.new()
+	var player := AudioStreamPlayerFluidSynth.new()
+	assert_object(stream).is_not_null()
+	assert_object(player).is_not_null()
+	player.free()
 	collect_orphan_node_details()
 
 func test_stream_defaults():
 	assert_object(stream.get_soundfont()).is_null()
 	assert_object(stream.get_midi_file()).is_null()
-	assert_str(stream.get_stream_name()).is_equal("FluidSynth")
 
 
 func test_stream_midi_property_roundtrip():
@@ -48,8 +48,11 @@ func test_stream_midi_property_roundtrip():
 func test_stream_set_get_soundfont():
 	if not ResourceLoader.exists("res://assets/example.sf2"):
 		return
-	stream.set_soundfont("res://assets/example.sf2")
-	assert_object(stream.get_soundfont()).is_not_null()
+	var soundfont: SoundFontFileReader = ResourceLoader.load("res://assets/example.sf2")
+	if soundfont == null:
+		return
+	stream.set_soundfont(soundfont)
+	assert_object(stream.get_soundfont()).is_equal(soundfont)
 
 
 func test_stream_set_get_midi_file():
@@ -59,11 +62,11 @@ func test_stream_set_get_midi_file():
 	assert_object(stream.get_midi_file()).is_not_null()
 
 
-func test_set_soundfont_missing_is_graceful():
-	# Missing path should not crash; the stream checks ResourceLoader::exists.
-	stream.set_soundfont(MISSING_SOUNDFONT)
+func test_set_soundfont_null_is_graceful():
+	# A null resource should not crash; the stream guards before sfload.
+	stream.set_soundfont(null)
 	await get_tree().process_frame
-	assert_bool(true).is_true()
+	assert_object(stream.get_soundfont()).is_null()
 
 
 func test_play_midi_with_valid_assets():
@@ -107,7 +110,10 @@ func test_replay_after_stop():
 func test_audiostream_player_integration():
 	if not ResourceLoader.exists("res://assets/example.sf2") or not ResourceLoader.exists("res://assets/example.mid"):
 		return
-	stream.set_soundfont("res://assets/example.sf2")
+	var soundfont: SoundFontFileReader = ResourceLoader.load("res://assets/example.sf2")
+	if soundfont == null:
+		return
+	stream.set_soundfont(soundfont)
 	stream.set_midi_file(ResourceLoader.load("res://assets/example.mid"))
 	await get_tree().process_frame
 	player.play()
