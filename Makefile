@@ -8,28 +8,28 @@ PLATFORM=osx
 endif
 
 all:
-	scons platform=$(PLATFORM)
+	scons platform=$(PLATFORM) compiledb=yes target=template_debug
 
-dev-build:
-	scons platform=$(PLATFORM) dev_build=yes debug_symbols=yes
+.PHONY: godot-cpp
 
 godot-cpp:
 	(cd godot-cpp && scons platform=$(PLATFORM) bits=64 generate_bindings=yes)
 
-.PHONY: assets godot-cpp
+# First soundfont found in known locations wins; override with SOUNDFONT=/path/to/font.sf2
+SOUNDFONT ?= $(firstword $(wildcard \
+	/usr/share/sounds/sf2/FluidR3_GM.sf2 \
+	/usr/share/soundfonts/*.sf2))
+
+ifeq ($(SOUNDFONT),)
+$(error No soundfont found in known locations; set SOUNDFONT=/path/to/font.sf2)
+endif
+
+.PHONY: assets
 assets:
-	cp /usr/share/sounds/sf2/FluidR3_GM.sf2 assets/example.sf2
-	abc2midi assets/example.abc -o assets/example.mid
-	abc2midi assets/example2.abc -o assets/example2.mid
+	cp $(SOUNDFONT) project/assets/example.sf2
+	abc2midi project/assets/example.abc -o project/assets/example.mid
+	abc2midi project/assets/example2.abc -o project/assets/example2.mid
 
-format:
-	clang-format -i src/*.cpp src/*.h
-	dotnet format ./MidiPlayer.sln
-	gdformat $(shell find -name '*.gd' ! -path './godot-cpp/*')
-
-clean:
-	rm src/*.os
-
-compiledb: clean
-	scons platform=$(PLATFORM) | tee build-log.txt
-	compiledb --parse build-log.txt
+.PHONY: addons
+addons:
+	scons addons

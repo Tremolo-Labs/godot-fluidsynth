@@ -3,7 +3,6 @@
 
 #include <fluidsynth.h>
 
-#include <godot_cpp/classes/audio_frame.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/godot.hpp>
 
@@ -12,37 +11,52 @@
 
 namespace godot {
 
+class AudioStreamPlaybackFluidSynth;
+
+// The FluidSynth instance: owns the settings and the synth. A pure audio
+// source — no transport and no controls, it only renders. The player node
+// holds one of these as its stream and drives the synth through it.
 class AudioStreamFluidSynth : public AudioStream {
     GDCLASS(AudioStreamFluidSynth, AudioStream)
 
-private:
     friend class AudioStreamPlaybackFluidSynth;
-    float pos;
-    int mix_rate;
-    bool stereo;
-    int hz;
+
+private:
+    fluid_settings_t *settings;
+    fluid_synth_t *synth;
+    int sfont_id;
+
     Ref<SoundFontFileReader> soundfont;
     Ref<MidiFileReader> midi_file;
 
+protected:
+    static void _bind_methods();
+
 public:
-    void reset();
-    void set_position(uint64_t pos);
-    virtual String get_stream_name() const;
-    int gen_tone(AudioFrame *p_buffer, float p_rate, int p_frames);
-    virtual float get_length() const {
-        return 0;
-    } // if supported, otherwise return 0
     AudioStreamFluidSynth();
     ~AudioStreamFluidSynth();
+
+    virtual String _get_stream_name() const override;
+    virtual double _get_length() const override { return 0.0; }
     virtual Ref<AudioStreamPlayback> _instantiate_playback() const override;
+
     void set_soundfont(Ref<SoundFontFileReader> p_soundfont);
     Ref<SoundFontFileReader> get_soundfont();
     void set_midi_file(Ref<MidiFileReader> p_midi_file);
     Ref<MidiFileReader> get_midi_file();
 
-protected:
-    static void _bind_methods();
+    void set_sample_rate(int p_rate);
+    int get_sample_rate() const;
+    void set_gain(double p_gain);
+    double get_gain() const;
+    void set_polyphony(int p_polyphony);
+    int get_polyphony() const;
+
+    // Internal plumbing for the player node's controls; not script-visible.
+    fluid_synth_t *get_synth() { return synth; }
+    int get_sfont_id() { return sfont_id; }
 };
+
 } // namespace godot
 
-#endif
+#endif // AUDIOSTREAMFLUIDSYNTH_H

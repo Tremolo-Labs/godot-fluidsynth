@@ -1,0 +1,153 @@
+* Godot FluidSynth
+This plugin exposes [[https://www.fluidsynth.org/][FluidSynth]] to Godot 4 via [[https://docs.godotengine.org/en/stable/tutorials/scripting/gdextension/what_is_gdextension.html][GDExtension]] and the [[https://github.com/godotengine/godot-cpp][godot-cpp]] bindings. It exists for realtime MIDI playback inside the engine — complementing Godot's built-in MIDI input — by rendering SoundFont-driven synthesis directly into Godot's audio server.
+
+** Usage
+Build prerequisites and commands live in the [[file:README.md][README]] and in =SConstruct=. The example scene =project/main.tscn= drives the singleton from GDScript.
+
+** Class architecture
+The library maps FluidSynth's objects onto Godot's audio API one-to-one. The synthesizer (=fluid_synth_t=) is an =AudioStream= — the sound source you assign to a player; the MIDI file player (=fluid_player_t=) and live-input routing (=fluid_sequencer_t=) are *control* surfaces, not audio, so they fold into the =AudioStreamPlayer= node rather than spawning their own classes.
+
+Every FluidSynth callback is marshalled onto a Godot signal, the way the [[https://github.com/arlez80/godot-midi-player-g4][godot-midi-player]] addon does.
+
+*** AudioStreamFluidSynth — the synthesizer
+A self-contained =AudioStream= (=Resource=) that *is* the FluidSynth instance: it owns =fluid_settings_t= and =fluid_synth_t=, the soundfont, and the =midi_file= data. Settings surface as exported properties (=sample_rate=, =gain=, =polyphony=, =midi_channels=, reverb/chorus groups) and are applied to the settings object at init. It carries no transport and no controls — it renders.
+
+- =_instantiate_playback()= → =AudioStreamPlaybackFluidSynth=
+- =_get_length()= → =total_ticks= / ticks-per-second; =_get_stream_name()= → the MIDI file name
+- Properties :: =soundfont= (path or =SoundFontFileReader=), =midi_file= (=Ref<MidiFileReader>=), the settings keys above
+
+#+begin_src gdscript :tangle no
+var synth := AudioStreamFluidSynth.new()
+synth.soundfont = "res://FluidR3_GM.sf2"
+synth.midi_file = load("res://song.mid")
+#+end_src
+
+*** AudioStreamPlaybackFluidSynth
+The transient render session (=RefCounted=), created by =_instantiate_playback=. =base= points back at its =AudioStreamFluidSynth=, so every playback a stream spawns renders *that* stream's synth — one node, one stream, one synth. It owns the SMF transport session:
+- =_mix= renders =fluid_synth_write_float(base->synth, …)= on the audio thread (no =gen_tone=, no ring buffer)
+- =_start= creates the =fluid_player_t=, feeds it =base->midi_file= via =fluid_player_add_mem=, and plays
+- =_stop= stops and frees the player; =_seek= → =fluid_player_seek=; =_get_length= / =_get_playback_position= → ticks
+
+*** AudioStreamPlayerFluidSynth — the instance node
+The =Node= that owns the instance's lifecycle: =AudioStreamPlayer= with a =stream= of =AudioStreamFluidSynth=. Its inherited =play()/stop()/seek()/finished= drive the SMF transport; the controls sit directly on the node and forward to the stream's synth.
+
+- Controls (proxy to the synth) :: =note_on/off=, =cc=, =pitch_bend=, =program_change=, =program_select=, =bank_select=, =sfont_select=, =key_pressure=, =channel_pressure=, =all_notes_off=, =all_sounds_off=, =system_reset=, =sysex=
+- Queries :: =get_cc=, =get_pitch_bend=, =get_pitch_wheel_sens=, =get_program=, =get_gen= / =set_gen= (NRPN generator offset), =voice_count=
+- Transport :: =loop=, =tick= (=fluid_player_get_current_tick=), =total_ticks= (=fluid_player_get_total_ticks=), =bpm= (=fluid_player_get_bpm=), =division= (PPQ, =fluid_player_get_division=), =tempo= (=fluid_player_set_tempo=; =tempo_type= =FLUID_PLAYER_TEMPO_INTERNAL=, =FLUID_PLAYER_TEMPO_EXTERNAL_BPM= or =FLUID_PLAYER_TEMPO_EXTERNAL_MIDI=)
+
+#+begin_src gdscript :tangle no
+var player := AudioStreamPlayerFluidSynth.new()
+player.stream = synth
+add_child(player)
+player.set_loop(2)
+player.play()
+player.note_on(0, 60, 90)     # live, direct on the node
+await player.finished
+print("played %d ticks" % player.total_ticks)
+#+end_src
+
+Live input is the sequencer role, folded into the node: =_input()= handles =InputEventMIDI= and routes it to the stream's synth, the same live path the reference's =receive_raw_midi_message= uses (=MidiPlayer.gd:729=). Timed event delivery via =fluid_sequencer_t= (with =fluid_sequencer_send_at=, time scale, cancellation) is deferred to the delivery plan.
+
+Signals — the SMF event surface. Two callbacks carry the whole stream — =fluid_player_set_playback_callback= (a =handle_midi_event_func_t= invoked for every MIDI message) and =fluid_player_set_tick_callback= (=handle_midi_tick_func_t=) — forwarded onto signals by the node. The reference implementation for this surface is the [[https://github.com/arlez80/godot-midi-player-g4][godot-midi-player]] addon (=project/addons/godot-midi-player=): pure GDScript and slower, but it emits *more* of the SMF content than FluidSynth exposes, and its =MidiPlayer.gd:301= signal block is the contract our signals mirror. The two players stay interchangeable in the unit tests, where the addon acts as the oracle.
+
+Playback signals (from =handle_midi_event_func_t=):
+- =note_on(channel, key, velocity)=, =note_off(channel, key)=
+- =control_change(channel, controller, value)=, =program_change(channel, program)=
+- =pitch_bend(channel, value)= (0-16383, 8192 center), =key_pressure(channel, key, value)=, =channel_pressure(channel, value)=
+- =midi_event(channel, event: Dictionary)= — the raw event for consumers that want everything =fluid_midi_event_t= can carry (sysex, meta)
+
+Transport signals:
+- =finished= (Godot's built-in, when the player reaches =FLUID_PLAYER_DONE=); =looped= on playlist wrap
+- =ticked(tick)= from =handle_midi_tick_func_t= (fired at PPQ × BPM per minute)
+- =tempo_changed(bpm)= on the set-tempo meta event
+
+SMF meta-text signals (decoded from text/lyrics-bearing events in the stream, as the addon does at =MidiPlayer.gd:1007=):
+- =midi_text(text)=, =midi_lyrics(text)=, =midi_copyright(text)=
+- =midi_track_name(channel, name)=, =midi_instrument_name(channel, name)=
+- =midi_marker(marker)=, =midi_cue_point(cue)=
+- =gm_system_on=, =gs_reset=, =xg_system_on= — decoded from the sys-ex stream exactly as =MidiPlayer._process_track_sys_ex= does (=MidiPlayer.gd:1040=)
+
+The callbacks fire on the audio thread (inside =_mix=); they feed a lock-free queue the node drains in =_process= and emits on the main thread.
+
+#+begin_src cpp :tangle src/register_types.cpp
+void initialize_gdmidiplayer_module(ModuleInitializationLevel p_level) {
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
+	ClassDB::register_class<AudioStreamFluidSynth>();
+	ClassDB::register_class<AudioStreamPlaybackFluidSynth>();
+	ClassDB::register_class<AudioStreamPlayerFluidSynth>();
+	ClassDB::register_class<MidiFileReader>();
+	ClassDB::register_class<SoundFontFileReader>();
+}
+GDExtensionBool GDE_EXPORT gdmidiplayer_library_init(...) {
+	godot::GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
+	init_obj.register_initializer(initialize_gdmidiplayer_module);
+	init_obj.register_terminator(uninitialize_gdmidiplayer_module);
+	init_obj.set_minimum_library_initialization_level(MODULE_INITIALIZATION_LEVEL_SCENE);
+	return init_obj.init();
+}
+#+end_src
+
+Class reference is emitted via =GodotCPPDocData= when targeting =editor/template_debug= (=SConstruct:144=) into =src/gen/doc_data.gen.cpp=.
+
+*** MidiFileReader and SoundFontFileReader
+Both are =Resource= subclasses holding =PackedByteArray data= (=src/midi_file_reader.h:11=, =src/soundfont_file_reader.h:13=). The SoundFont reader additionally implements the random-access =open/read/seek/tell= surface used by the sfloader callbacks and advertises extensions =midstr= / =sf2str= for the importer.
+
+** Delivery plan
+Signal plumbing must exist before anything event-shaped consumes it, so the phases order dependencies first; each lands as its own PR.
+
+1. *Synth ownership* — move =fluid_synth_t= + settings + soundfont + =midi_file= into =AudioStreamFluidSynth=; =_mix= renders =base->synth= (drop =gen_tone=); delete the =FluidSynth= singleton and its registration; add =AudioStreamPlayerFluidSynth=; retire =AudioStreamMyTone=. Migrate =main.gd= and the test suite off =Engine.get_singleton("FluidSynth")=.
+2. *SMF transport* — =fluid_player_t= in the playback (=_start= / =_stop= / =_seek=), transport properties + =finished= / =loop= on the node, validation guards (=fluid_is_midifile=).
+3. *Deferred-emission infrastructure* — a lock-free queue fed from the FluidSynth callbacks on the audio thread, drained and emitted during the node's =_process=; every signal reuses it. Then: playback callback → the granular channel + meta signals above, tick callback → =ticked=, status → =finished= / =looped=; integration tests await signals instead of frame-counting.
+4. *Voice completeness* — the full =midi-messages= controls + =get_*= queries on the node (bank/sfont/program select, key/channel pressure, sysex).
+5. *FX & settings surface* — reverb/chorus groups and settings keys as properties on the stream.
+6. *Live input & sequencer* — =_input= / =InputEventMIDI= → synth; the =fluid_sequencer_t= scheduling surface (=send_at=, time scale, cancellation) later.
+7. *Voice callbacks* — the attach sweep and its two deferred signals (=voice_note_off(id)= / =voice_finished(id)=).
+
+The =godot-midi-player= addon (=project/addons/godot-midi-player=, fetched via =make addons=) rides along in the integration suites: it is the behavioral oracle for the signal contract, and =AudioStreamPlayerFluidSynth= is expected to be signal-compatible with it (both fed the same =project/assets/*.mid= fixtures).
+
+** Build and platform support
+*** SConstruct and dependency discovery
+=libname="gdmidiplayer"= matches the entry symbol =gdmidiplayer_library_init= and the built artifact. =projectdir="project"= holds the Godot project. =api_version= defaults to =4.7= and is forwarded to =godot-cpp/SConstruct=.
+
+FluidSynth discovery is staged in =SConstruct:47=:
+
+#+begin_src python :tangle SConstruct
+def configure_fluidsynth_pkgconfig(env):
+    cflags = subprocess.check_output(["pkg-config", "--cflags", "fluidsynth"]).decode().strip()
+    libs   = subprocess.check_output(["pkg-config", "--libs", "fluidsynth"]).decode().strip()
+    env.MergeFlags(cflags); env.MergeFlags(libs); return True
+
+def configure_fluidsynth_vcpkg(env):
+    vcpkg_root = os.environ.get("VCPKG_ROOT", "")
+    triplet = "x64-windows-static" if env["platform"]=="windows" else "arm64-osx"
+    installed = os.path.join(vcpkg_root, "installed", triplet)
+    env.Append(CPPPATH=[os.path.join(installed,"include")])
+    env.Append(LIBPATH=[os.path.join(installed,"lib")])
+    env.Append(LIBS=["fluidsynth"])
+
+if env["platform"]=="linux":
+    configure_fluidsynth_pkgconfig(env) or configure_fluidsynth_fallback(env)
+elif env["platform"] in ["windows","macos"]:
+    configure_fluidsynth_vcpkg(env) or configure_fluidsynth_pkgconfig(env) or configure_fluidsynth_fallback(env)
+#+end_src
+
+CI (=.github/workflows/builds.yml:11=) matrix builds =linux/x86_64/arm64/arm32 × template_debug/release × single=, installing =libfluidsynth-dev= via =apt= on Linux and =fluidsynth:arm64-osx,x64-osx= via =vcpkg= on macOS/Windows, with =scons_cache= and =VCPKG_BINARY_SOURCES=x-gha=.
+
+** Project layout
+The Godot project lives in =project/= (=SConstruct:10=, =project/project.godot:9=, =project/bin/gdmidiplayer.gdextension:7= with =./linux/...= relative paths, =.gdignore= at repo root). Export therefore bundles only =project/=, not =src/godot-cpp=, and =project/.godot= is isolated.
+
+** Demo scene
+=project/main.tscn:3= references GDScript (=res://main.gd=, uid =uid://bd056h3a15m5j=). =project/main.gd:1= shows the wiring:
+
+#+begin_src gdscript :tangle project/main.gd
+extends Node2D
+var fluidsynth: Node
+@export var midi_file: MidiFileReader
+func _ready() -> void:
+	fluidsynth = Engine.get_singleton("FluidSynth")
+	fluidsynth.call("play_midi")
+func _on_button_pressed() -> void:
+	fluidsynth.call("play_midi", midi_file)
+#+end_src
+
+Signals from =CheckButton*.toggled=, =Button.pressed= and =VSlider.value_changed= drive =note_on/off= and =pitch_bend= directly.

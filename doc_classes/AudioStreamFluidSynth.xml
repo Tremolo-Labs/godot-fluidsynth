@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AudioStreamFluidSynth" inherits="AudioStream" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		AudioStream that is the FluidSynth synthesizer.
+	</brief_description>
+	<description>
+		AudioStreamFluidSynth is a self-contained [AudioStream] resource that owns a [code]fluid_settings_t[/code] and [code]fluid_synth_t[/code], along with the SoundFont and MIDI data it renders. Settings surface as exported properties ([member sample_rate], [member gain], [member polyphony]) applied to the settings object at init. It carries no transport and no controls — it only renders. Assign it as the [member AudioStreamPlayer.stream] of an [AudioStreamPlayerFluidSynth] node, which drives it through [AudioStreamPlaybackFluidSynth].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="set_soundfont">
+			<return type="void" />
+			<param index="0" name="soundfont" type="String" />
+			<description>
+				Loads the [SoundFontFileReader] at [param soundfont] and stores it as this stream's SoundFont.
+			</description>
+		</method>
+		<method name="get_soundfont">
+			<return type="SoundFontFileReader" />
+			<description>
+				Returns the stored [SoundFontFileReader], or [code]null[/code] if none has been set.
+			</description>
+		</method>
+		<method name="set_midi_file">
+			<return type="void" />
+			<param index="0" name="midi_file" type="MidiFileReader" />
+			<description>
+				Stores [param midi_file] as this stream's MIDI data.
+			</description>
+		</method>
+		<method name="get_midi_file">
+			<return type="MidiFileReader" />
+			<description>
+				Returns the stored [MidiFileReader], or [code]null[/code] if none has been set.
+			</description>
+		</method>
+		<method name="set_sample_rate">
+			<return type="void" />
+			<param index="0" name="sample_rate" type="int" />
+			<description>
+				Sets the FluidSynth sample rate in hertz.
+			</description>
+		</method>
+		<method name="get_sample_rate" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the FluidSynth sample rate in hertz.
+			</description>
+		</method>
+		<method name="set_gain">
+			<return type="void" />
+			<param index="0" name="gain" type="float" />
+			<description>
+				Sets the FluidSynth master gain.
+			</description>
+		</method>
+		<method name="get_gain" qualifiers="const">
+			<return type="float" />
+			<description>
+				Returns the FluidSynth master gain.
+			</description>
+		</method>
+		<method name="set_polyphony">
+			<return type="void" />
+			<param index="0" name="polyphony" type="int" />
+			<description>
+				Sets the FluidSynth voice polyphony limit.
+			</description>
+		</method>
+		<method name="get_polyphony" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the FluidSynth voice polyphony limit.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="soundfont" type="SoundFontFileReader" setter="set_soundfont" getter="get_soundfont">
+			SoundFont resource used for synthesis.
+		</member>
+		<member name="midi_file" type="MidiFileReader" setter="set_midi_file" getter="get_midi_file">
+			MIDI resource rendered when playback starts.
+		</member>
+		<member name="sample_rate" type="int" setter="set_sample_rate" getter="get_sample_rate">
+			Sample rate in hertz.
+		</member>
+		<member name="gain" type="float" setter="set_gain" getter="get_gain">
+			Master gain.
+		</member>
+		<member name="polyphony" type="int" setter="set_polyphony" getter="get_polyphony">
+			Voice polyphony limit.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>

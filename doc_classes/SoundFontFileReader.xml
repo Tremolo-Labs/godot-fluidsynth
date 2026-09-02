@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="SoundFontFileReader" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Resource holding raw SoundFont bytes and sfloader callbacks.
+	</brief_description>
+	<description>
+		SoundFontFileReader holds the raw bytes of a SoundFont 2 file in [member data] and implements the random-access surface ([code]open[/code], [code]read[/code], [code]seek[/code], [code]tell[/code]) used by the custom [code]fluid_sfloader_t[/code] in [AudioStreamFluidSynth]. It is produced by the SoundFont import plugin ([code]project/addons/midi/import_soundfont_plugin.gd[/code]) as [code].sf2str[/code]. Only the [code]data[/code] property and [method get_extension] are exposed to GDScript; the file-like methods are C++ helpers and [code]sf_*[/code] callbacks are internal.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="set_data">
+			<return type="void" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				Replaces the internal byte array with a copy of [param data].
+			</description>
+		</method>
+		<method name="get_data" qualifiers="const">
+			<return type="PackedByteArray" />
+			<description>
+				Returns a copy of the internal SoundFont bytes.
+			</description>
+		</method>
+		<method name="get_extension" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns [code]"sf2str"[/code], the extension used by the SoundFont loader/saver.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="data" type="PackedByteArray" setter="set_data" getter="get_data">
+			Raw SoundFont file bytes.
+		</member>
+	</members>
+	<signals>
+	</signals>
+	<constants>
+	</constants>
+</class>
