@@ -1,7 +1,6 @@
 #include "audio_stream_fluidsynth.h"
 
 #include <godot_cpp/classes/audio_stream_playback.hpp>
-#include <godot_cpp/classes/resource_loader.hpp>
 
 #include "audio_stream_playback_fluidsynth.h"
 
@@ -31,6 +30,7 @@ AudioStreamFluidSynth::~AudioStreamFluidSynth() {
 }
 
 String AudioStreamFluidSynth::_get_stream_name() const {
+  // this should return the name of the MIDI file resource if there is one
     return "FluidSynth";
 }
 
@@ -41,18 +41,13 @@ Ref<AudioStreamPlayback> AudioStreamFluidSynth::_instantiate_playback() const {
     return playback;
 }
 
-void AudioStreamFluidSynth::set_soundfont(String p_path) {
-    if (!ResourceLoader::get_singleton()->exists(p_path)) {
-        return;
-    }
-    Variant resource = ResourceLoader::get_singleton()->load(p_path);
-    Ref<SoundFontFileReader> sf = resource;
-    if (sf.is_null()) {
+void AudioStreamFluidSynth::set_soundfont(Ref<SoundFontFileReader> p_soundfont) {
+    soundfont = p_soundfont;
+    if (soundfont.is_null() || synth == nullptr) {
         return;
     }
     // Keep the resource alive for the synth's lazy sample cache and encode the
     // address of this Ref as the pseudo-path the sfloader decodes back into it.
-    soundfont = sf;
     char abused_filename[64];
     const void *pointer_to_sf2_in_mem = static_cast<void *>(&soundfont);
     snprintf(abused_filename, sizeof(abused_filename), "&%p", pointer_to_sf2_in_mem);

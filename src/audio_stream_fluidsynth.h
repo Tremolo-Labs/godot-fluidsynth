@@ -40,7 +40,7 @@ public:
     virtual double _get_length() const override { return 0.0; }
     virtual Ref<AudioStreamPlayback> _instantiate_playback() const override;
 
-    void set_soundfont(String p_path);
+    void set_soundfont(Ref<SoundFontFileReader> p_soundfont);
     Ref<SoundFontFileReader> get_soundfont();
     void set_midi_file(Ref<MidiFileReader> p_midi_file);
     Ref<MidiFileReader> get_midi_file();

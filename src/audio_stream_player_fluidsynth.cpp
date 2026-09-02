@@ -18,10 +18,12 @@ fluid_synth_t *AudioStreamPlayerFluidSynth::_synth() {
 }
 
 fluid_player_t *AudioStreamPlayerFluidSynth::_player() {
-    Ref<AudioStreamPlayback> playback = get_stream_playback();
-    Ref<AudioStreamPlaybackFluidSynth> fluid = playback;
-    if (fluid.is_valid()) {
-        return fluid->get_player();
+    if (is_playing()) {
+        Ref<AudioStreamPlayback> playback = get_stream_playback();
+        Ref<AudioStreamPlaybackFluidSynth> fluid = playback;
+        if (fluid.is_valid()) {
+            return fluid->get_player();
+        }
     }
     return nullptr;
 }
